@@ -1,0 +1,61 @@
+{
+  "blockers": [],
+  "checks": {
+    "duplicate_ids": "executed",
+    "file_integrity": "executed",
+    "logsource_and_detection": "executed",
+    "pysigma_parsing": "executed",
+    "sigmahq_full_lint_suite": "not_run",
+    "yaml_validation": "executed"
+  },
+  "duplicate_ids": {},
+  "error_files": [],
+  "generated_at_utc": "2026-11-02T14:05:13Z",
+  "integrity": {
+    "checksum_mismatches": [],
+    "counts_match": true,
+    "filesystem_yaml_count": 1193,
+    "manifest_loaded": true,
+    "manifest_rule_count": 1193,
+    "missing_files": [],
+    "path_traversal_attempts": [],
+    "record_mismatches": [],
+    "rules_root_exists": true,
+    "unexpected_files": [],
+    "unsafe_manifest_paths": []
+  },
+  "intentionally_variable_fields": [
+    "generated_at_utc"
+  ],
+  "notes": [
+    "yaml_status OK does not imply pysigma_status PYSIGMA_OK.",
+    "Logsource mismatches are warnings. They do not change yaml_status or pysigma_status.",
+    "sigma-cli's full SigmaHQ validator configuration was not run.",
+    "generated_at_utc is the only intentionally variable field."
+  ],
+  "schema_version": "1.0",
+  "source_commit": "ccbb0369507f796db0b0ae6854c8a2be471b9d84",
+  "source_repo": "https://github.com/SigmaHQ/sigma",
+  "summary": {
+    "duplicate_id_count": 0,
+    "error_severity_files": 0,
+    "filesystem_yaml_count": 1193,
+    "integrity_passed": true,
+    "manifest_rule_count": 1193,
+    "pysigma_status": {
+      "PYSIGMA_OK": 1193
+    },
+    "sigma_yaml_loader_status": {
+      "OK": 1193
+    },
+    "warning_counts": {},
+    "yaml_status": {
+      "OK": 1193
+    }
+  },
+  "tool_versions": {
+    "pysigma": "2.0.2",
+    "python": "3.14.4",
+    "pyyaml": "6.0.3"
+  }
+}

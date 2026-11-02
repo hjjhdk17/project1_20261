@@ -1,0 +1,546 @@
+{
+  "coverage_gaps": [
+    "simple_commandline: no eligible corpus rule matched this bucket",
+    "keyword: no eligible corpus rule matched this bucket",
+    "cased_modifier: no eligible corpus rule matched this bucket",
+    "other_status: no eligible corpus rule matched this bucket",
+    "placeholder: no eligible corpus rule matched this bucket"
+  ],
+  "generated_at_utc": "2026-11-02T14:04:26Z",
+  "intentionally_variable_fields": [
+    "generated_at_utc"
+  ],
+  "inventory_source_commit": "ccbb0369507f796db0b0ae6854c8a2be471b9d84",
+  "notes": [
+    "Complexity labels are structural heuristics, not converter verdicts.",
+    "A coverage gap means the collected corpus had no eligible rule for that bucket."
+  ],
+  "rules": [
+    {
+      "bucket": "simple_image",
+      "curated_relative_path": "curated/proc_creation_win_wpbbin_potential_persistence.yml",
+      "expected_future_conversion_complexity": "low",
+      "expected_support_status": null,
+      "features_represented": [
+        "simple_image",
+        "Image"
+      ],
+      "known_limitations": [],
+      "selection_reason": "Smallest eligible corpus file for the simple_image bucket. Fields: Image. Modifier chains: none. Condition: selection.",
+      "sha256": "8a817e993f50538def08feb66c1b78cb9b3092680d40f7cc7053ae8b613421da",
+      "sigma_id": "4abc0ec4-db5a-412f-9632-26659cddf145",
+      "size_bytes": 885,
+      "source_relative_path": "windows/process_creation/proc_creation_win_wpbbin_potential_persistence.yml",
+      "status": "test",
+      "title": "UEFI Persistence Via Wpbbin - ProcessCreation",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_wpbbin_potential_persistence.yml"
+    },
+    {
+      "bucket": "image_endswith",
+      "curated_relative_path": "curated/proc_creation_win_device_credential_deployment.yml",
+      "expected_future_conversion_complexity": "low",
+      "expected_support_status": null,
+      "features_represented": [
+        "image_endswith",
+        "Image",
+        "endswith"
+      ],
+      "known_limitations": [],
+      "selection_reason": "Smallest eligible corpus file for the image_endswith bucket. Fields: Image. Modifier chains: endswith. Condition: selection.",
+      "sha256": "544c29d7d49abbadedd642c54d56267cdc3b1c0e3a3e5f2c5ed6b585f655d3f1",
+      "sigma_id": "b8b1b304-a60f-4999-9a6e-c547bde03ffd",
+      "size_bytes": 596,
+      "source_relative_path": "windows/process_creation/proc_creation_win_device_credential_deployment.yml",
+      "status": "test",
+      "title": "DeviceCredentialDeployment Execution",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_device_credential_deployment.yml"
+    },
+    {
+      "bucket": "commandline_contains",
+      "curated_relative_path": "curated/proc_creation_win_lolbin_utilityfunctions.yml",
+      "expected_future_conversion_complexity": "low",
+      "expected_support_status": null,
+      "features_represented": [
+        "commandline_contains",
+        "CommandLine",
+        "contains"
+      ],
+      "known_limitations": [],
+      "selection_reason": "Smallest eligible corpus file for the commandline_contains bucket. Fields: CommandLine. Modifier chains: contains. Condition: selection.",
+      "sha256": "522cae83245765275ca382eed55b120b6bdc58794db9eaf18e892eee476264bb",
+      "sigma_id": "0403d67d-6227-4ea8-8145-4e72db7da120",
+      "size_bytes": 607,
+      "source_relative_path": "windows/process_creation/proc_creation_win_lolbin_utilityfunctions.yml",
+      "status": "test",
+      "title": "UtilityFunctions.ps1 Proxy Dll",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_lolbin_utilityfunctions.yml"
+    },
+    {
+      "bucket": "startswith",
+      "curated_relative_path": "curated/proc_creation_win_msiexec_masquerading.yml",
+      "expected_future_conversion_complexity": "high",
+      "expected_support_status": null,
+      "features_represented": [
+        "startswith",
+        "Image",
+        "OriginalFileName",
+        "endswith",
+        "startswith",
+        "and",
+        "not"
+      ],
+      "known_limitations": [
+        "Contains a list-of-maps selection, which is an OR of AND-groups."
+      ],
+      "selection_reason": "Smallest eligible corpus file for the startswith bucket. Fields: Image, OriginalFileName. Modifier chains: endswith, startswith. Condition: selection and not filter.",
+      "sha256": "ad392f27a214b730fad78cc75cebb1efcaba6fe5a073bdf99eaa8b28feb3ce93",
+      "sigma_id": "e22a6eb2-f8a5-44b5-8b44-a2dbd47b1144",
+      "size_bytes": 773,
+      "source_relative_path": "windows/process_creation/proc_creation_win_msiexec_masquerading.yml",
+      "status": "test",
+      "title": "Potential MsiExec Masquerading",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_msiexec_masquerading.yml"
+    },
+    {
+      "bucket": "endswith_other_field",
+      "curated_relative_path": "curated/proc_creation_win_lolbin_runexehelper.yml",
+      "expected_future_conversion_complexity": "low",
+      "expected_support_status": null,
+      "features_represented": [
+        "endswith_other_field",
+        "ParentImage",
+        "endswith"
+      ],
+      "known_limitations": [],
+      "selection_reason": "Smallest eligible corpus file for the endswith_other_field bucket. Fields: ParentImage. Modifier chains: endswith. Condition: selection.",
+      "sha256": "f538ccf55a106b620613c0b22ebd2bd25b8ad83cc6c79b9ca556cc25ede8914a",
+      "sigma_id": "cd71385d-fd9b-4691-9b98-2b1f7e508714",
+      "size_bytes": 619,
+      "source_relative_path": "windows/process_creation/proc_creation_win_lolbin_runexehelper.yml",
+      "status": "test",
+      "title": "Lolbin Runexehelper Use As Proxy",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_lolbin_runexehelper.yml"
+    },
+    {
+      "bucket": "contains_all",
+      "curated_relative_path": "curated/proc_creation_win_reg_volsnap_disable.yml",
+      "expected_future_conversion_complexity": "medium",
+      "expected_support_status": null,
+      "features_represented": [
+        "contains_all",
+        "CommandLine",
+        "contains|all"
+      ],
+      "known_limitations": [],
+      "selection_reason": "Smallest eligible corpus file for the contains_all bucket. Fields: CommandLine. Modifier chains: contains|all. Condition: selection.",
+      "sha256": "4470dd1cfdec8335230cd62ffef6c555576b89d48860d905f22f2497f68ad69f",
+      "sigma_id": "dee4af55-1f22-4e1d-a9d2-4bdc7ecb472a",
+      "size_bytes": 638,
+      "source_relative_path": "windows/process_creation/proc_creation_win_reg_volsnap_disable.yml",
+      "status": "test",
+      "title": "Disabled Volume Snapshots",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_reg_volsnap_disable.yml"
+    },
+    {
+      "bucket": "multi_value",
+      "curated_relative_path": "curated/proc_creation_win_taskmgr_localsystem.yml",
+      "expected_future_conversion_complexity": "low",
+      "expected_support_status": null,
+      "features_represented": [
+        "multi_value",
+        "Image",
+        "User",
+        "contains",
+        "endswith"
+      ],
+      "known_limitations": [],
+      "selection_reason": "Smallest eligible corpus file for the multi_value bucket. Fields: Image, User. Modifier chains: contains, endswith. Condition: selection.",
+      "sha256": "812790881847f6983e299c1aab4d512672a255f4e9ebc50a2ea7cd3ab8e8d892",
+      "sigma_id": "9fff585c-c33e-4a86-b3cd-39312079a65f",
+      "size_bytes": 625,
+      "source_relative_path": "windows/process_creation/proc_creation_win_taskmgr_localsystem.yml",
+      "status": "test",
+      "title": "Taskmgr as LOCAL_SYSTEM",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_taskmgr_localsystem.yml"
+    },
+    {
+      "bucket": "multi_field",
+      "curated_relative_path": "curated/proc_creation_win_splwow64_cli_anomaly.yml",
+      "expected_future_conversion_complexity": "low",
+      "expected_support_status": null,
+      "features_represented": [
+        "multi_field",
+        "CommandLine",
+        "Image",
+        "endswith"
+      ],
+      "known_limitations": [],
+      "selection_reason": "Smallest eligible corpus file for the multi_field bucket. Fields: CommandLine, Image. Modifier chains: endswith. Condition: selection.",
+      "sha256": "4280fe37cfbe4469bf7f29fa7a4414be1ae615943f00bc9291737eadb155b137",
+      "sigma_id": "1f1a8509-2cbb-44f5-8751-8e1571518ce2",
+      "size_bytes": 631,
+      "source_relative_path": "windows/process_creation/proc_creation_win_splwow64_cli_anomaly.yml",
+      "status": "test",
+      "title": "Suspicious Splwow64 Without Params",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_splwow64_cli_anomaly.yml"
+    },
+    {
+      "bucket": "parent_image",
+      "curated_relative_path": "curated/proc_creation_win_mshta_lethalhta_technique.yml",
+      "expected_future_conversion_complexity": "low",
+      "expected_support_status": null,
+      "features_represented": [
+        "parent_image",
+        "Image",
+        "ParentImage",
+        "endswith"
+      ],
+      "known_limitations": [],
+      "selection_reason": "Smallest eligible corpus file for the parent_image bucket. Fields: Image, ParentImage. Modifier chains: endswith. Condition: selection.",
+      "sha256": "ae3e9490298fddd92b090c7b1c5fdc7f4867a53f50168271606159eaa9b9fa04",
+      "sigma_id": "ed5d72a6-f8f4-479d-ba79-02f6a80d7471",
+      "size_bytes": 634,
+      "source_relative_path": "windows/process_creation/proc_creation_win_mshta_lethalhta_technique.yml",
+      "status": "test",
+      "title": "Potential LethalHTA Technique Execution",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_mshta_lethalhta_technique.yml"
+    },
+    {
+      "bucket": "parent_commandline",
+      "curated_relative_path": "curated/proc_creation_win_conhost_path_traversal.yml",
+      "expected_future_conversion_complexity": "low",
+      "expected_support_status": null,
+      "features_represented": [
+        "parent_commandline",
+        "CommandLine",
+        "ParentCommandLine",
+        "contains"
+      ],
+      "known_limitations": [],
+      "selection_reason": "Smallest eligible corpus file for the parent_commandline bucket. Fields: CommandLine, ParentCommandLine. Modifier chains: contains. Condition: selection.",
+      "sha256": "4f70fa71b2b03619a80bfd775557451b538fc1bbb2e2a29ac16c8b4251e98c99",
+      "sigma_id": "ee5e119b-1f75-4b34-add8-3be976961e39",
+      "size_bytes": 664,
+      "source_relative_path": "windows/process_creation/proc_creation_win_conhost_path_traversal.yml",
+      "status": "test",
+      "title": "Conhost.exe CommandLine Path Traversal",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_conhost_path_traversal.yml"
+    },
+    {
+      "bucket": "original_file_name",
+      "curated_relative_path": "curated/proc_creation_win_pua_crassus.yml",
+      "expected_future_conversion_complexity": "high",
+      "expected_support_status": null,
+      "features_represented": [
+        "original_file_name",
+        "Description",
+        "Image",
+        "OriginalFileName",
+        "contains",
+        "endswith"
+      ],
+      "known_limitations": [
+        "Contains a list-of-maps selection, which is an OR of AND-groups."
+      ],
+      "selection_reason": "Smallest eligible corpus file for the original_file_name bucket. Fields: Description, Image, OriginalFileName. Modifier chains: contains, endswith. Condition: selection.",
+      "sha256": "9889b0add3a578b0279775c3ad5a8d2c98aec961f2d1b7c0bba1bcb0389dd6be",
+      "sigma_id": "2c32b543-1058-4808-91c6-5b31b8bed6c5",
+      "size_bytes": 661,
+      "source_relative_path": "windows/process_creation/proc_creation_win_pua_crassus.yml",
+      "status": "test",
+      "title": "PUA - Crassus Execution",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_pua_crassus.yml"
+    },
+    {
+      "bucket": "user_field",
+      "curated_relative_path": "curated/proc_creation_win_tscon_localsystem.yml",
+      "expected_future_conversion_complexity": "low",
+      "expected_support_status": null,
+      "features_represented": [
+        "user_field",
+        "Image",
+        "User",
+        "contains",
+        "endswith"
+      ],
+      "known_limitations": [],
+      "selection_reason": "Smallest eligible corpus file for the user_field bucket. Fields: Image, User. Modifier chains: contains, endswith. Condition: selection.",
+      "sha256": "59ad497dde0d1d6fa2f651cab0b2114a556bd4fbc6b9f696f32ab1642f311d45",
+      "sigma_id": "9847f263-4a81-424f-970c-875dab15b79b",
+      "size_bytes": 925,
+      "source_relative_path": "windows/process_creation/proc_creation_win_tscon_localsystem.yml",
+      "status": "test",
+      "title": "Suspicious TSCON Start as SYSTEM",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_tscon_localsystem.yml"
+    },
+    {
+      "bucket": "two_selections_and",
+      "curated_relative_path": "curated/proc_creation_win_lolbin_replace.yml",
+      "expected_future_conversion_complexity": "high",
+      "expected_support_status": null,
+      "features_represented": [
+        "two_selections_and",
+        "CommandLine",
+        "Image",
+        "contains|windash",
+        "endswith",
+        "and"
+      ],
+      "known_limitations": [
+        "Uses windash, which rewrites dash characters before comparison."
+      ],
+      "selection_reason": "Smallest eligible corpus file for the two_selections_and bucket. Fields: CommandLine, Image. Modifier chains: contains|windash, endswith. Condition: selection and argument.",
+      "sha256": "ee9d0254aa95a2f7e82653a6c2d996ae844802bb8ddd3bf27b46dc5e01e8ef2f",
+      "sigma_id": "9292293b-8496-4715-9db6-37028dcda4b3",
+      "size_bytes": 838,
+      "source_relative_path": "windows/process_creation/proc_creation_win_lolbin_replace.yml",
+      "status": "test",
+      "title": "Replace.exe Usage",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_lolbin_replace.yml"
+    },
+    {
+      "bucket": "one_of",
+      "curated_relative_path": "curated/proc_creation_win_susp_dumpstack_log_evasion.yml",
+      "expected_future_conversion_complexity": "medium",
+      "expected_support_status": null,
+      "features_represented": [
+        "one_of",
+        "CommandLine",
+        "Image",
+        "contains",
+        "endswith",
+        "1_of"
+      ],
+      "known_limitations": [],
+      "selection_reason": "Smallest eligible corpus file for the one_of bucket. Fields: CommandLine, Image. Modifier chains: contains, endswith. Condition: 1 of selection*.",
+      "sha256": "e9bce3c9287077458a8ae73ea2b4c32490a12ef4428385edbaa8b36904af63e7",
+      "sigma_id": "4f647cfa-b598-4e12-ad69-c68dd16caef8",
+      "size_bytes": 646,
+      "source_relative_path": "windows/process_creation/proc_creation_win_susp_dumpstack_log_evasion.yml",
+      "status": "test",
+      "title": "DumpStack.log Defender Evasion",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_susp_dumpstack_log_evasion.yml"
+    },
+    {
+      "bucket": "all_of",
+      "curated_relative_path": "curated/proc_creation_win_tscon_rdp_session_hijacking.yml",
+      "expected_future_conversion_complexity": "high",
+      "expected_support_status": null,
+      "features_represented": [
+        "all_of",
+        "Image",
+        "IntegrityLevel",
+        "OriginalFileName",
+        "endswith",
+        "all_of"
+      ],
+      "known_limitations": [
+        "Contains a list-of-maps selection, which is an OR of AND-groups."
+      ],
+      "selection_reason": "Smallest eligible corpus file for the all_of bucket. Fields: Image, IntegrityLevel, OriginalFileName. Modifier chains: endswith. Condition: all of selection_*.",
+      "sha256": "82f3b8d66cfbfca6c49e4b55d020ba7f24ba65d730991345c8eee476ef1aac13",
+      "sigma_id": "224f140f-3553-4cd1-af78-13d81bf9f7cc",
+      "size_bytes": 705,
+      "source_relative_path": "windows/process_creation/proc_creation_win_tscon_rdp_session_hijacking.yml",
+      "status": "test",
+      "title": "Potential RDP Session Hijacking Activity",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_tscon_rdp_session_hijacking.yml"
+    },
+    {
+      "bucket": "selection_and_not",
+      "curated_relative_path": "curated/proc_creation_win_renamed_msteams.yml",
+      "expected_future_conversion_complexity": "medium",
+      "expected_support_status": null,
+      "features_represented": [
+        "selection_and_not",
+        "Image",
+        "OriginalFileName",
+        "endswith",
+        "and",
+        "not",
+        "1_of"
+      ],
+      "known_limitations": [],
+      "selection_reason": "Smallest eligible corpus file for the selection_and_not bucket. Fields: Image, OriginalFileName. Modifier chains: endswith. Condition: selection and not 1 of filter_main_*.",
+      "sha256": "35ba2240f9c47e38dc9b1e45d42a8a862b6da92843b0ef59ca72fab8a7f5e601",
+      "sigma_id": "88f46b67-14d4-4f45-ac2c-d66984f22191",
+      "size_bytes": 671,
+      "source_relative_path": "windows/process_creation/proc_creation_win_renamed_msteams.yml",
+      "status": "test",
+      "title": "Renamed Microsoft Teams Execution",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_renamed_msteams.yml"
+    },
+    {
+      "bucket": "list_of_maps",
+      "curated_relative_path": "curated/proc_creation_win_lolbin_ttdinject.yml",
+      "expected_future_conversion_complexity": "high",
+      "expected_support_status": null,
+      "features_represented": [
+        "list_of_maps",
+        "Image",
+        "OriginalFileName",
+        "endswith"
+      ],
+      "known_limitations": [
+        "Contains a list-of-maps selection, which is an OR of AND-groups."
+      ],
+      "selection_reason": "Smallest eligible corpus file for the list_of_maps bucket. Fields: Image, OriginalFileName. Modifier chains: endswith. Condition: selection.",
+      "sha256": "c000411a3f8f460a2b8cd9766798100af53926697c343051bc63197f6ad5e378",
+      "sigma_id": "b27077d6-23e6-45d2-81a0-e2b356eea5fd",
+      "size_bytes": 666,
+      "source_relative_path": "windows/process_creation/proc_creation_win_lolbin_ttdinject.yml",
+      "status": "test",
+      "title": "Use of TTDInject.exe",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_lolbin_ttdinject.yml"
+    },
+    {
+      "bucket": "regex_modifier",
+      "curated_relative_path": "curated/proc_creation_win_hktl_invoke_obfuscation_via_stdin.yml",
+      "expected_future_conversion_complexity": "high",
+      "expected_support_status": null,
+      "features_represented": [
+        "regex_modifier",
+        "CommandLine",
+        "re"
+      ],
+      "known_limitations": [
+        "Uses the re modifier, which is outside the initial SRS modifier priority."
+      ],
+      "selection_reason": "Smallest eligible corpus file for the regex_modifier bucket. Fields: CommandLine. Modifier chains: re. Condition: selection.",
+      "sha256": "35b8347033e5e9168b1730a7fc77a99f08c0ec406d801686de2716bb8fee560f",
+      "sigma_id": "9c14c9fa-1a63-4a64-8e57-d19280559490",
+      "size_bytes": 643,
+      "source_relative_path": "windows/process_creation/proc_creation_win_hktl_invoke_obfuscation_via_stdin.yml",
+      "status": "test",
+      "title": "Invoke-Obfuscation Via Stdin",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_hktl_invoke_obfuscation_via_stdin.yml"
+    },
+    {
+      "bucket": "windash_modifier",
+      "curated_relative_path": "curated/proc_creation_win_lolbin_unregmp2.yml",
+      "expected_future_conversion_complexity": "high",
+      "expected_support_status": null,
+      "features_represented": [
+        "windash_modifier",
+        "CommandLine",
+        "Image",
+        "OriginalFileName",
+        "contains|windash",
+        "endswith",
+        "all_of"
+      ],
+      "known_limitations": [
+        "Uses windash, which rewrites dash characters before comparison.",
+        "Contains a list-of-maps selection, which is an OR of AND-groups."
+      ],
+      "selection_reason": "Smallest eligible corpus file for the windash_modifier bucket. Fields: CommandLine, Image, OriginalFileName. Modifier chains: contains|windash, endswith. Condition: all of selection_*.",
+      "sha256": "a149690473bd53dd9dc720df07b44edb0daac6f0113387ab2381b107f8740a6d",
+      "sigma_id": "727454c0-d851-48b0-8b89-385611ab0704",
+      "size_bytes": 708,
+      "source_relative_path": "windows/process_creation/proc_creation_win_lolbin_unregmp2.yml",
+      "status": "test",
+      "title": "Lolbin Unregmp2.exe Use As Proxy",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_lolbin_unregmp2.yml"
+    },
+    {
+      "bucket": "base64offset_modifier",
+      "curated_relative_path": "curated/proc_creation_win_powershell_base64_frombase64string.yml",
+      "expected_future_conversion_complexity": "high",
+      "expected_support_status": null,
+      "features_represented": [
+        "base64offset_modifier",
+        "CommandLine",
+        "base64offset|contains",
+        "contains"
+      ],
+      "known_limitations": [
+        "Uses base64offset, which is outside the initial SRS modifier priority.",
+        "Contains a list-of-maps selection, which is an OR of AND-groups."
+      ],
+      "selection_reason": "Smallest eligible corpus file for the base64offset_modifier bucket. Fields: CommandLine. Modifier chains: base64offset|contains, contains. Condition: selection.",
+      "sha256": "b1945e32d381f1293be6d91e44e4472c9a208f7da9338b3cebda2901176a31a9",
+      "sigma_id": "fdb62a13-9a81-4e5c-a38f-ea93a16f6d7c",
+      "size_bytes": 888,
+      "source_relative_path": "windows/process_creation/proc_creation_win_powershell_base64_frombase64string.yml",
+      "status": "test",
+      "title": "PowerShell Base64 Encoded FromBase64String Cmdlet",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_powershell_base64_frombase64string.yml"
+    },
+    {
+      "bucket": "complex_boolean",
+      "curated_relative_path": "curated/proc_creation_win_susp_file_characteristics.yml",
+      "expected_future_conversion_complexity": "high",
+      "expected_support_status": null,
+      "features_represented": [
+        "complex_boolean",
+        "Company",
+        "Description",
+        "FileVersion",
+        "Image",
+        "Product",
+        "contains",
+        "and",
+        "or",
+        "parentheses"
+      ],
+      "known_limitations": [
+        "Condition uses parentheses."
+      ],
+      "selection_reason": "Smallest eligible corpus file for the complex_boolean bucket. Fields: Company, Description, FileVersion, Image, Product. Modifier chains: contains. Condition: (selection1 or selection2 or selection3) and folder.",
+      "sha256": "863049160157abb480cdef90db92c82a283de12b001a7aebdf10184ecc29dc60",
+      "sigma_id": "9637e8a5-7131-4f7f-bdc7-2b05d8670c43",
+      "size_bytes": 978,
+      "source_relative_path": "windows/process_creation/proc_creation_win_susp_file_characteristics.yml",
+      "status": "test",
+      "title": "Suspicious File Characteristics Due to Missing Fields",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_susp_file_characteristics.yml"
+    },
+    {
+      "bucket": "experimental_status",
+      "curated_relative_path": "curated/proc_creation_win_speechruntime_child_process.yml",
+      "expected_future_conversion_complexity": "low",
+      "expected_support_status": null,
+      "features_represented": [
+        "experimental_status",
+        "ParentImage",
+        "endswith"
+      ],
+      "known_limitations": [],
+      "selection_reason": "Smallest eligible corpus file for the experimental_status bucket. Fields: ParentImage. Modifier chains: endswith. Condition: selection.",
+      "sha256": "2b32d2008e659ec6613ca69d7ca37cc420bcc9303d9f76ac22fba9c040021863",
+      "sigma_id": "78f10490-f2f4-4d19-a75b-4e0683bf3b8d",
+      "size_bytes": 756,
+      "source_relative_path": "windows/process_creation/proc_creation_win_speechruntime_child_process.yml",
+      "status": "experimental",
+      "title": "Suspicious Speech Runtime Binary Child Process",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_speechruntime_child_process.yml"
+    },
+    {
+      "bucket": "parser_wildcard",
+      "curated_relative_path": "curated/proc_creation_win_reg_credential_access_via_password_filter.yml",
+      "expected_future_conversion_complexity": "medium",
+      "expected_support_status": null,
+      "features_represented": [
+        "parser_wildcard",
+        "CommandLine",
+        "contains|all"
+      ],
+      "known_limitations": [],
+      "selection_reason": "Smallest eligible corpus file for the parser_wildcard bucket. Fields: CommandLine. Modifier chains: contains|all. Condition: selection_cmdline.",
+      "sha256": "20a8a989e285fabfd34e4847c71da43c46a9e8b8733763ef9c668720ae41c4f1",
+      "sigma_id": "b7966f4a-b333-455b-8370-8ca53c229762",
+      "size_bytes": 861,
+      "source_relative_path": "windows/process_creation/proc_creation_win_reg_credential_access_via_password_filter.yml",
+      "status": "test",
+      "title": "Dropping Of Password Filter DLL",
+      "upstream_path": "rules/windows/process_creation/proc_creation_win_reg_credential_access_via_password_filter.yml"
+    }
+  ],
+  "schema_version": "1.0",
+  "selected_count": 23,
+  "selection_method": "For each feature bucket, choose the smallest eligible rule and break ties by relative path. Feature buckets accept Sigma status stable or test. experimental and any other status have their own buckets. Eligibility also requires YAML success, pySigma success, no error-severity findings, and logsource product windows with category process_creation. Status test is included because it is the majority maturity label in this directory, not a parse failure. Files are exact byte copies. expected_support_status is null because no converter exists.",
+  "source_commit": "ccbb0369507f796db0b0ae6854c8a2be471b9d84",
+  "source_path": "rules/windows/process_creation",
+  "source_repo": "https://github.com/SigmaHQ/sigma",
+  "unexpected_curated_files": []
+}

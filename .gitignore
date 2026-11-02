@@ -1,0 +1,10 @@
+# Project-local environment and regenerable clone. The pinned Sigma snapshot under
+# input/sigma_rules/ is kept because it is a Phase 0 deliverable.
+.venv/
+cache/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.env
+*.egg-info/
