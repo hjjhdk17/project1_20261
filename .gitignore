@@ -8,3 +8,8 @@ __pycache__/
 .mypy_cache/
 .env
 *.egg-info/
+
+# Generated converter output (keep the empty directory via .gitkeep).
+output/*
+!output/.gitkeep
+

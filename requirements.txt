@@ -1,6 +1,7 @@
 # Phase 0 dataset tooling only. This does not describe the future converter.
 # Versions were installed and imported with the project virtual environment
 # before they were pinned. Transitive pins are in requirements.lock.
+# Phase 1: pyproject.toml [project] dependencies must list these same three pins.
 pysigma==2.0.2
 PyYAML==6.0.3
 pytest==8.4.2

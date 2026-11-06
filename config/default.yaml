@@ -1,0 +1,11 @@
+# Cấu hình mặc định Phase 1. Mọi đường dẫn là tương đối project root.
+project:
+  name: sigma2wazuh
+
+paths:
+  rules_root: input/sigma_rules
+  output: output
+  reports: reports
+
+logging:
+  level: INFO

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sigma2wazuh"
+version = "0.1.0"
+description = "Academic Sigma-to-Wazuh converter prototype (Phase 1 foundation)"
+readme = "README.md"
+requires-python = ">=3.11,<4"
+# Same direct pins as requirements.txt (method C). Keep both files in sync.
+dependencies = [
+    "pysigma==2.0.2",
+    "PyYAML==6.0.3",
+    "pytest==8.4.2",
+]
+
+[project.scripts]
+sigma2wazuh = "sigma2wazuh.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
