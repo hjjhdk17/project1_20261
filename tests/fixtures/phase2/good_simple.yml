@@ -1,0 +1,16 @@
+title: Phase2 Fixture Good Simple
+id: 11111111-1111-1111-1111-111111111111
+status: test
+description: Minimal process_creation rule for Phase 2 smoke tests
+author: phase2-fixture
+date: 2026-11-07
+logsource:
+    product: windows
+    category: process_creation
+detection:
+    selection:
+        Image: 'C:\Windows\System32\notepad.exe'
+    condition: selection
+falsepositives:
+    - None
+level: low

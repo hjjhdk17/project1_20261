@@ -1,8 +1,7 @@
 # Project I — Sigma-to-Wazuh Converter
 
-Academic Python prototype. Phase 1 provides the package skeleton, YAML config
-loading, logging, and a CLI that can validate configuration. Conversion is not
-implemented yet.
+Academic Python prototype. Phase 2 adds Sigma file/directory loading and
+pySigma parsing with a JSON report. Wazuh XML conversion is not implemented yet.
 
 Design documents stay in `project1_sigma_wazuh_design/` (read-only reference).
 Phase 0 dataset tools remain under `scripts/`.
@@ -42,6 +41,7 @@ working.
 python -m sigma2wazuh --help
 python -m sigma2wazuh --version
 python -m sigma2wazuh validate-config
+python -m sigma2wazuh parse --input input/sigma_rules/curated --output output/phase2-parse.json
 python -m sigma2wazuh --config config/default.yaml --log-level DEBUG validate-config
 ```
 
@@ -49,15 +49,19 @@ Equivalent entry point after editable install:
 
 ```bash
 sigma2wazuh validate-config
+sigma2wazuh parse --input input/sigma_rules/curated
 ```
+
+If `--output` is omitted, JSON is written to `output/phase2-parse.json`
+(from `paths.output` in config).
 
 Exit codes:
 
-- `0` — success
+- `0` — success (for `parse`: pipeline finished and report written, even if some rules FAILED)
 - `1` — configuration or runtime error
 - `2` — CLI usage/syntax error (argparse default)
 
-There is no `convert` command in Phase 1.
+There is no `convert` command in Phase 2.
 
 ## Tests
 
@@ -65,12 +69,13 @@ There is no `convert` command in Phase 1.
 python -m pytest -q
 ```
 
-This runs the Phase 0 dataset tests and the Phase 1 foundation tests.
+This runs Phase 0 dataset tests, Phase 1 foundation tests, and Phase 2 parse tests.
 
-## Layout (Phase 1)
+## Layout (Phase 2)
 
-- `src/sigma2wazuh/` — package (`cli`, `config`, `logging_setup`)
+- `src/sigma2wazuh/` — package (`cli`, `config`, `logging_setup`, `parsing`)
 - `config/default.yaml` — default config (paths relative to project root)
 - `output/` — generated artifacts (gitignored except `.gitkeep`)
 - `scripts/` — Phase 0 dataset tooling (unchanged)
 - `input/sigma_rules/` — pinned SigmaHQ snapshot from Phase 0
+- `tests/fixtures/phase2/` — small good/bad fixtures for parser tests

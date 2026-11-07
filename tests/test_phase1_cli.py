@@ -86,6 +86,7 @@ def test_help_does_not_list_convert(capsys: pytest.CaptureFixture[str]) -> None:
     assert excinfo.value.code == 0
     help_text = capsys.readouterr().out
     assert "validate-config" in help_text
+    assert "parse" in help_text
     # Không có subcommand convert; từ "converter" trong mô tả vẫn được phép.
     assert "{convert}" not in help_text
     assert "\n  convert " not in help_text

@@ -31,7 +31,7 @@ def _valid_payload() -> dict:
 def test_package_importable() -> None:
     import sigma2wazuh
 
-    assert sigma2wazuh.__version__ == "0.1.0"
+    assert sigma2wazuh.__version__ == "0.2.0"
 
 
 def test_default_config_loads() -> None:

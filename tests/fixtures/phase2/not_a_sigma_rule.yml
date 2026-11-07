@@ -1,0 +1,3 @@
+# YAML hợp lệ nhưng không phải Sigma rule — pySigma phải FAIL.
+hello: world
+count: 1

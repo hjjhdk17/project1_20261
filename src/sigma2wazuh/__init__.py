@@ -1,3 +1,3 @@
-"""Gói sigma2wazuh — nền tảng CLI/config/logging (Phase 1, chưa convert)."""
+"""Gói sigma2wazuh — CLI/config/logging + parse Sigma (Phase 2, chưa convert)."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
