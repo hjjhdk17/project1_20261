@@ -1,0 +1,15 @@
+title: Phase3 Fixture Eligible One Of
+id: 77777777-7777-7777-7777-777777777777
+status: test
+description: 1 of selection* — trong allowlist MVP
+author: phase3-fixture
+logsource:
+    product: windows
+    category: process_creation
+detection:
+    selectionA:
+        OriginalFileName: 'dumpstack.log'
+    selectionB:
+        CommandLine|contains: 'DumpStack.log'
+    condition: 1 of selection*
+level: low

@@ -1,0 +1,13 @@
+title: Phase3 Fixture Eligible Endswith
+id: 33333333-3333-3333-3333-333333333333
+status: test
+description: Image endswith — trong allowlist MVP
+author: phase3-fixture
+logsource:
+    product: windows
+    category: process_creation
+detection:
+    selection:
+        Image|endswith: '\cmd.exe'
+    condition: selection
+level: low

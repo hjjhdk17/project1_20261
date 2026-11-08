@@ -1,0 +1,15 @@
+title: Phase3 Fixture Eligible Contains All
+id: 44444444-4444-4444-4444-444444444444
+status: test
+description: CommandLine contains|all — trong allowlist MVP
+author: phase3-fixture
+logsource:
+    product: windows
+    category: process_creation
+detection:
+    selection:
+        CommandLine|contains|all:
+            - '-enc'
+            - 'bypass'
+    condition: selection
+level: low

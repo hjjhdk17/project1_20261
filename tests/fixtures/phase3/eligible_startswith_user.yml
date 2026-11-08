@@ -1,0 +1,14 @@
+title: Phase3 Fixture Eligible Startswith User
+id: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
+status: test
+description: ParentImage startswith + User exact — trong allowlist
+author: phase3-fixture
+logsource:
+    product: windows
+    category: process_creation
+detection:
+    selection:
+        ParentImage|startswith: 'C:\Windows'
+        User: 'SYSTEM'
+    condition: selection
+level: low

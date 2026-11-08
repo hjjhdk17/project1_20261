@@ -1,7 +1,8 @@
 # Project I — Sigma-to-Wazuh Converter
 
-Academic Python prototype. Phase 2 adds Sigma file/directory loading and
-pySigma parsing with a JSON report. Wazuh XML conversion is not implemented yet.
+Academic Python prototype. Phase 3 adds support analysis (ELIGIBLE /
+UNSUPPORTED) on top of Phase 2 Sigma parsing. Wazuh XML conversion is not
+implemented yet.
 
 Design documents stay in `project1_sigma_wazuh_design/` (read-only reference).
 Phase 0 dataset tools remain under `scripts/`.
@@ -42,6 +43,7 @@ python -m sigma2wazuh --help
 python -m sigma2wazuh --version
 python -m sigma2wazuh validate-config
 python -m sigma2wazuh parse --input input/sigma_rules/curated --output output/phase2-parse.json
+python -m sigma2wazuh analyze --input input/sigma_rules/curated --output output/phase3-support.json
 python -m sigma2wazuh --config config/default.yaml --log-level DEBUG validate-config
 ```
 
@@ -50,18 +52,21 @@ Equivalent entry point after editable install:
 ```bash
 sigma2wazuh validate-config
 sigma2wazuh parse --input input/sigma_rules/curated
+sigma2wazuh analyze --input input/sigma_rules/curated
 ```
 
-If `--output` is omitted, JSON is written to `output/phase2-parse.json`
-(from `paths.output` in config).
+Defaults when `--output` is omitted:
+
+- `parse` → `output/phase2-parse.json`
+- `analyze` → `output/phase3-support.json`
 
 Exit codes:
 
-- `0` — success (for `parse`: pipeline finished and report written, even if some rules FAILED)
+- `0` — success (for `parse`/`analyze`: pipeline finished and report written, even if some rules FAILED/UNSUPPORTED)
 - `1` — configuration or runtime error
 - `2` — CLI usage/syntax error (argparse default)
 
-There is no `convert` command in Phase 2.
+There is no `convert` command in Phase 3.
 
 ## Tests
 
@@ -69,13 +74,14 @@ There is no `convert` command in Phase 2.
 python -m pytest -q
 ```
 
-This runs Phase 0 dataset tests, Phase 1 foundation tests, and Phase 2 parse tests.
+This runs Phase 0–3 tests.
 
-## Layout (Phase 2)
+## Layout (Phase 3)
 
-- `src/sigma2wazuh/` — package (`cli`, `config`, `logging_setup`, `parsing`)
+- `src/sigma2wazuh/` — package (`cli`, `config`, `logging_setup`, `parsing`, `support_analyzer`)
 - `config/default.yaml` — default config (paths relative to project root)
 - `output/` — generated artifacts (gitignored except `.gitkeep`)
 - `scripts/` — Phase 0 dataset tooling (unchanged)
 - `input/sigma_rules/` — pinned SigmaHQ snapshot from Phase 0
-- `tests/fixtures/phase2/` — small good/bad fixtures for parser tests
+- `tests/fixtures/phase2/` — parser fixtures
+- `tests/fixtures/phase3/` — support-analyzer fixtures

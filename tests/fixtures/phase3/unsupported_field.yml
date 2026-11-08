@@ -1,0 +1,13 @@
+title: Phase3 Fixture Unsupported Field
+id: 99999999-9999-9999-9999-999999999999
+status: test
+description: Field Hashes ngoài allowlist
+author: phase3-fixture
+logsource:
+    product: windows
+    category: process_creation
+detection:
+    selection:
+        Hashes|contains: 'SHA256=abc'
+    condition: selection
+level: low

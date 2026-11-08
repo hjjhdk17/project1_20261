@@ -1,0 +1,15 @@
+title: Phase3 Fixture Eligible All Of
+id: 66666666-6666-6666-6666-666666666666
+status: test
+description: all of selection_* — trong allowlist MVP
+author: phase3-fixture
+logsource:
+    product: windows
+    category: process_creation
+detection:
+    selection_img:
+        Image|endswith: '\unregmp2.exe'
+    selection_cli:
+        CommandLine|contains: '/j'
+    condition: all of selection_*
+level: low
