@@ -67,6 +67,53 @@ def test_unsupported_condition_or() -> None:
     assert any(item["code"] == "CONDITION_UNSUPPORTED" for item in reasons)
 
 
+def test_keyword_search_unsupported() -> None:
+    detection = {"keywords": ["mimikatz"], "condition": "keywords"}
+    features = extract_features(detection)
+    status, reasons = classify(features)
+    assert status == "UNSUPPORTED"
+    assert any(item["code"] == "KEYWORD_SEARCH_UNSUPPORTED" for item in reasons)
+
+
+def test_list_of_maps_unsupported() -> None:
+    detection = {
+        "selection": [
+            {"Image|endswith": "a.exe"},
+            {"CommandLine|contains": "x"},
+        ],
+        "condition": "selection",
+    }
+    features = extract_features(detection)
+    status, reasons = classify(features)
+    assert status == "UNSUPPORTED"
+    assert any(item["code"] == "LIST_OF_MAPS_UNSUPPORTED" for item in reasons)
+
+
+def test_empty_selection_unsupported() -> None:
+    detection = {"selection": {}, "condition": "selection"}
+    features = extract_features(detection)
+    status, reasons = classify(features)
+    assert status == "UNSUPPORTED"
+    assert any(item["code"] == "EMPTY_SELECTION" for item in reasons)
+
+
+def test_tool_error_is_failed(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Parse OK nhưng không resolve lại được file → FAILED, không cộng unsupported.
+    import sigma2wazuh.support_analyzer as sa
+
+    monkeypatch.setattr(sa, "_resolve_rule_file", lambda *a, **k: None)
+    report = analyze_batch(FIXTURES, path_base=FIXTURES)
+    failed = [r for r in report["records"] if r["support_status"] == "FAILED"]
+    assert failed
+    assert all(
+        any(u["code"] == "SOURCE_UNAVAILABLE" for u in r["unsupported_features"])
+        for r in failed
+    )
+    assert report["summary"]["failed"] == len(failed)
+    assert report["summary"]["unsupported"] == 0
+    assert report["summary"]["eligible"] == 0
+
+
 def test_extract_fields_and_modifiers() -> None:
     features = extract_features(_detection("eligible_contains_all.yml"))
     assert features["fields"] == ["CommandLine"]

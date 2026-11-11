@@ -1,4 +1,4 @@
-"""Phase 3: phân loại rule supportable (ELIGIBLE) / UNSUPPORTED.
+"""Phase 3: phân loại rule ELIGIBLE / UNSUPPORTED / FAILED.
 
 Reuse parse_batch từ Phase 2. Không map field, không sinh Wazuh XML.
 """
@@ -41,6 +41,9 @@ def extract_features(detection: object) -> dict[str, Any]:
     modifiers: set[str] = set()
     selection_names: list[str] = []
     condition: str | None = None
+    keyword_search = False
+    list_of_maps = False
+    empty_selection = False
 
     if not isinstance(detection, dict):
         return {
@@ -48,6 +51,9 @@ def extract_features(detection: object) -> dict[str, Any]:
             "modifiers": [],
             "selection_names": [],
             "condition": None,
+            "keyword_search": False,
+            "list_of_maps": False,
+            "empty_selection": False,
         }
 
     for key, value in detection.items():
@@ -57,7 +63,23 @@ def extract_features(detection: object) -> dict[str, Any]:
             continue
 
         selection_names.append(key)
-        blocks = value if isinstance(value, list) else [value]
+        # Phân loại shape selection trước khi flatten field.
+        if isinstance(value, list):
+            if not value:
+                empty_selection = True  # selection: []
+            if any(isinstance(b, dict) for b in value):
+                list_of_maps = True  # OR ngầm — không hỗ trợ (giống condition `or`)
+            if any(not isinstance(b, dict) for b in value):
+                keyword_search = True  # list string / scalar
+            blocks = value
+        elif isinstance(value, dict):
+            if not value:
+                empty_selection = True  # selection: {}
+            blocks = [value]
+        else:
+            keyword_search = True  # keyword search dạng scalar
+            blocks = []
+
         for block in blocks:
             if not isinstance(block, dict):
                 continue
@@ -76,6 +98,9 @@ def extract_features(detection: object) -> dict[str, Any]:
         "modifiers": sorted(modifiers),
         "selection_names": sorted(selection_names),
         "condition": condition,
+        "keyword_search": keyword_search,
+        "list_of_maps": list_of_maps,
+        "empty_selection": empty_selection,
     }
 
 
@@ -110,6 +135,28 @@ def _condition_allowed(condition: str | None, selection_names: list[str]) -> boo
 def classify(features: dict[str, Any]) -> tuple[str, list[dict[str, str]]]:
     """So features với allowlist. Trả (ELIGIBLE|UNSUPPORTED, danh sách lý do)."""
     unsupported: list[dict[str, str]] = []
+
+    if features.get("keyword_search"):
+        unsupported.append(
+            {
+                "code": "KEYWORD_SEARCH_UNSUPPORTED",
+                "message": "Keyword search (non-map selection values) is out of MVP scope.",
+            }
+        )
+    if features.get("list_of_maps"):
+        unsupported.append(
+            {
+                "code": "LIST_OF_MAPS_UNSUPPORTED",
+                "message": "List-of-maps selection (implicit OR) is out of MVP scope.",
+            }
+        )
+    if features.get("empty_selection"):
+        unsupported.append(
+            {
+                "code": "EMPTY_SELECTION",
+                "message": "Empty selection map/list has no matchable fields.",
+            }
+        )
 
     for field in features["fields"]:
         if field not in ALLOWED_FIELDS:
@@ -197,7 +244,8 @@ def analyze_batch(
             item, path_base=path_base, input_path=input_resolved
         )
         if path is None:
-            item["support_status"] = "UNSUPPORTED"
+            # Lỗi công cụ (không đọc lại được file) → FAILED, không tính UNSUPPORTED.
+            item["support_status"] = "FAILED"
             item["features"] = None
             item["unsupported_features"] = [
                 {
@@ -205,14 +253,15 @@ def analyze_batch(
                     "message": "Cannot re-read rule file for feature extraction.",
                 }
             ]
-            unsupported += 1
+            failed += 1
             records.append(item)
             continue
 
         try:
             data = yaml.safe_load(path.read_text(encoding="utf-8"))
         except (OSError, yaml.YAMLError) as exc:
-            item["support_status"] = "UNSUPPORTED"
+            # Lỗi I/O/YAML lúc extract → FAILED (SRS: khác UNSUPPORTED).
+            item["support_status"] = "FAILED"
             item["features"] = None
             item["unsupported_features"] = [
                 {
@@ -220,7 +269,7 @@ def analyze_batch(
                     "message": f"{type(exc).__name__}: {exc}",
                 }
             ]
-            unsupported += 1
+            failed += 1
             records.append(item)
             continue
 
