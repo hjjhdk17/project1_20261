@@ -76,6 +76,9 @@ def extract_features(detection: object) -> dict[str, Any]:
             if not value:
                 empty_selection = True  # selection: {}
             blocks = [value]
+        elif value is None:
+            empty_selection = True  # selection: null
+            blocks = []
         else:
             keyword_search = True  # keyword search dạng scalar
             blocks = []
@@ -133,7 +136,7 @@ def _condition_allowed(condition: str | None, selection_names: list[str]) -> boo
 
 
 def classify(features: dict[str, Any]) -> tuple[str, list[dict[str, str]]]:
-    """So features với allowlist. Trả (ELIGIBLE|UNSUPPORTED, danh sách lý do)."""
+    """So features với allowlist. Trả ELIGIBLE|UNSUPPORTED (FAILED chỉ từ analyze_batch)."""
     unsupported: list[dict[str, str]] = []
 
     if features.get("keyword_search"):
@@ -221,7 +224,7 @@ def analyze_batch(
     path_base: Path | None = None,
     source_commit: str | None = None,
 ) -> dict[str, Any]:
-    """Parse rồi classify. Parse FAILED → support_status null."""
+    """Parse rồi classify. Parse lỗi → support_status null; lỗi tool → FAILED."""
     parsed = parse_batch(
         input_path, path_base=path_base, source_commit=source_commit
     )
@@ -291,7 +294,7 @@ def analyze_batch(
         "records": records,
         "summary": {
             "total": len(records),
-            "parse_ok": eligible + unsupported,
+            "parse_ok": sum(1 for r in records if r.get("parse_status") == "OK"),
             "eligible": eligible,
             "unsupported": unsupported,
             "failed": failed,

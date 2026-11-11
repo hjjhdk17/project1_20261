@@ -1,8 +1,8 @@
 # Project I — Sigma-to-Wazuh Converter
 
 Academic Python prototype. Phase 3 adds support analysis (ELIGIBLE /
-UNSUPPORTED) on top of Phase 2 Sigma parsing. Wazuh XML conversion is not
-implemented yet.
+UNSUPPORTED / FAILED; parse failures keep support_status null) on top of
+Phase 2 Sigma parsing. Wazuh XML conversion is not implemented yet.
 
 Design documents stay in `project1_sigma_wazuh_design/` (read-only reference).
 Phase 0 dataset tools remain under `scripts/`.

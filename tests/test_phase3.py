@@ -89,8 +89,9 @@ def test_list_of_maps_unsupported() -> None:
     assert any(item["code"] == "LIST_OF_MAPS_UNSUPPORTED" for item in reasons)
 
 
-def test_empty_selection_unsupported() -> None:
-    detection = {"selection": {}, "condition": "selection"}
+@pytest.mark.parametrize("selection", [{}, None])
+def test_empty_selection_unsupported(selection: object) -> None:
+    detection = {"selection": selection, "condition": "selection"}
     features = extract_features(detection)
     status, reasons = classify(features)
     assert status == "UNSUPPORTED"
@@ -112,6 +113,34 @@ def test_tool_error_is_failed(monkeypatch: pytest.MonkeyPatch) -> None:
     assert report["summary"]["failed"] == len(failed)
     assert report["summary"]["unsupported"] == 0
     assert report["summary"]["eligible"] == 0
+    assert report["summary"]["parse_ok"] == report["summary"]["total"]
+
+
+def test_feature_extract_error_is_failed(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Lần đọc YAML đầu (parse) OK; lần đọc lại lúc extract → OSError / FAILED.
+    real_read = Path.read_text
+    seen: set[str] = set()
+
+    def _read_once(self: Path, *args: object, **kwargs: object) -> str:
+        key = str(self.resolve())
+        if self.suffix.lower() in {".yml", ".yaml"} and key in seen:
+            raise OSError("boom")
+        if self.suffix.lower() in {".yml", ".yaml"}:
+            seen.add(key)
+        return real_read(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _read_once)
+    report = analyze_batch(FIXTURES, path_base=FIXTURES)
+    failed = [r for r in report["records"] if r["support_status"] == "FAILED"]
+    assert failed
+    assert all(
+        any(u["code"] == "FEATURE_EXTRACT_ERROR" for u in r["unsupported_features"])
+        for r in failed
+    )
+    assert report["summary"]["failed"] == len(failed)
+    assert report["summary"]["unsupported"] == 0
+    assert report["summary"]["eligible"] == 0
+    assert report["summary"]["parse_ok"] == report["summary"]["total"]
 
 
 def test_extract_fields_and_modifiers() -> None:

@@ -64,7 +64,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     analyze_cmd = subparsers.add_parser(
         "analyze",
-        help="Parse Sigma rules and classify ELIGIBLE/UNSUPPORTED; write JSON.",
+        help="Parse Sigma rules and classify ELIGIBLE/UNSUPPORTED/FAILED; write JSON.",
     )
     analyze_cmd.add_argument(
         "--input",
