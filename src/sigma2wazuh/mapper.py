@@ -59,12 +59,20 @@ def _make_pred(
     values: list[Any],
     field_map: dict[str, str],
 ) -> tuple[dict[str, Any] | None, list[dict[str, str]]]:
-    """Tạo một node pred; lỗi mapping/wildcard → (None, diagnostics)."""
+    """Tạo một node pred; lỗi mapping/wildcard/value → (None, diagnostics)."""
     if sigma_field not in field_map:
         return None, [
             _diag(
                 "FIELD_MAPPING_MISSING",
                 f"No wazuh_field mapping for Sigma field {sigma_field!r}",
+            )
+        ]
+    # null / list rỗng / kiểu lạ → Phase 5 sẽ sinh rule sai (eq null, regex rỗng).
+    if not values or any(type(v) not in (str, int) for v in values):
+        return None, [
+            _diag(
+                "VALUE_UNSUPPORTED",
+                f"Empty or non-str/int values for field {sigma_field!r}: {values!r}",
             )
         ]
     if _has_wildcard(values):
@@ -99,7 +107,17 @@ def _field_key_to_node(
     if mod == "contains|all":
         return _make_pred(sigma_field, "contains_all", values, field_map)
 
-    op = _MODIFIER_TO_OP.get(mod, "eq") if mod else "eq"
+    if mod:
+        op = _MODIFIER_TO_OP.get(mod)
+        if op is None:
+            return None, [
+                _diag(
+                    "MODIFIER_UNSUPPORTED",
+                    f"Unknown or unsupported modifier {mod!r} on field {sigma_field!r}",
+                )
+            ]
+    else:
+        op = "eq"
     # List value (không phải contains|all) = OR các pred đơn.
     if len(values) > 1:
         children: list[dict[str, Any]] = []
@@ -173,13 +191,16 @@ def _build_ir(
     field_map: dict[str, str],
 ) -> tuple[dict[str, Any] | None, list[dict[str, str]]]:
     """Xây IR đầy đủ từ detection; lỗi → (None, diagnostics)."""
-    selection_names = [
-        key for key in detection.keys() if key != "condition" and isinstance(key, str)
-    ]
-    condition_raw = detection.get("condition")
-    condition_str = (
-        " ".join(condition_raw.split()) if isinstance(condition_raw, str) else None
-    )
+    features = record.get("features")
+    if not isinstance(features, dict):
+        return None, [
+            _diag(
+                "FEATURES_MISSING",
+                "ELIGIBLE record has no features dict from analyze_batch.",
+            )
+        ]
+    selection_names = features["selection_names"]
+    condition_str = features["condition"]
     matched = match_mvp_condition(condition_str, selection_names)
     if matched is None:
         return None, [

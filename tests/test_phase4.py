@@ -10,7 +10,7 @@ import pytest
 from sigma2wazuh import __version__
 from sigma2wazuh.cli import main
 from sigma2wazuh.config import find_project_root
-from sigma2wazuh.mapper import load_field_mapping, map_batch
+from sigma2wazuh.mapper import build_selection_node, load_field_mapping, map_batch
 from sigma2wazuh.support_analyzer import ALLOWED_FIELDS
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -160,6 +160,35 @@ def test_wildcard_map_failed() -> None:
     assert record["map_status"] == "FAILED"
     assert record["ir"] is None
     assert any(d["code"] == "WILDCARD_UNSUPPORTED" for d in record["map_diagnostics"])
+
+
+def test_value_unsupported_null_and_empty_list() -> None:
+    """null / list rỗng vẫn ELIGIBLE ở Phase 3 nhưng mapper phải FAILED."""
+    report = map_batch(
+        PHASE4 / "value_null.yml",
+        path_base=PHASE4,
+        field_mapping_path=FIELD_MAPPING,
+    )
+    _assert_summary_invariant(report["summary"])
+    assert report["summary"]["map_failed"] == 1
+    record = report["records"][0]
+    assert record["support_status"] == "ELIGIBLE"
+    assert record["map_status"] == "FAILED"
+    assert record["ir"] is None
+    assert any(d["code"] == "VALUE_UNSUPPORTED" for d in record["map_diagnostics"])
+
+    mapping = load_field_mapping(FIELD_MAPPING)
+    empty_node, empty_err = build_selection_node(
+        {"Image|endswith": []}, mapping
+    )
+    assert empty_node is None
+    assert any(d["code"] == "VALUE_UNSUPPORTED" for d in empty_err)
+
+    bad_mod_node, bad_mod_err = build_selection_node(
+        {"Image|re": "cmd"}, mapping
+    )
+    assert bad_mod_node is None
+    assert any(d["code"] == "MODIFIER_UNSUPPORTED" for d in bad_mod_err)
 
 
 def test_missing_field_mapping_map_failed() -> None:

@@ -1,0 +1,13 @@
+title: Phase4 Fixture Null Field Value
+id: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
+status: test
+description: Field null — mapper phải map_failed VALUE_UNSUPPORTED (không eq null)
+author: phase4-fixture
+logsource:
+    product: windows
+    category: process_creation
+detection:
+    selection:
+        Image: null
+    condition: selection
+level: low
