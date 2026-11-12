@@ -1,0 +1,13 @@
+title: Phase4 Fixture Needs User Mapping
+id: cccccccc-cccc-cccc-cccc-cccccccccccc
+status: test
+description: Rule ELIGIBLE dùng User — fail khi mapping thiếu User
+author: phase4-fixture
+logsource:
+    product: windows
+    category: process_creation
+detection:
+    selection:
+        User: 'SYSTEM'
+    condition: selection
+level: low

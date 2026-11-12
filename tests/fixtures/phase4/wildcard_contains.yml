@@ -1,0 +1,13 @@
+title: Phase4 Fixture Wildcard Contains
+id: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+status: test
+description: Value chứa * — mapper phải map_failed WILDCARD_UNSUPPORTED
+author: phase4-fixture
+logsource:
+    product: windows
+    category: process_creation
+detection:
+    selection:
+        CommandLine|contains: 'password*.txt'
+    condition: selection
+level: low

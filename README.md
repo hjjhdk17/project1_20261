@@ -1,8 +1,8 @@
 # Project I — Sigma-to-Wazuh Converter
 
-Academic Python prototype. Phase 3 adds support analysis (ELIGIBLE /
-UNSUPPORTED / FAILED; parse failures keep support_status null) on top of
-Phase 2 Sigma parsing. Wazuh XML conversion is not implemented yet.
+Academic Python prototype. Phase 4 maps **ELIGIBLE** Sigma rules to a thin IR
+JSON (field/modifier/condition trees). Wazuh XML generation is not implemented
+yet.
 
 Design documents stay in `project1_sigma_wazuh_design/` (read-only reference).
 Phase 0 dataset tools remain under `scripts/`.
@@ -44,6 +44,7 @@ python -m sigma2wazuh --version
 python -m sigma2wazuh validate-config
 python -m sigma2wazuh parse --input input/sigma_rules/curated --output output/phase2-parse.json
 python -m sigma2wazuh analyze --input input/sigma_rules/curated --output output/phase3-support.json
+python -m sigma2wazuh map --input input/sigma_rules/curated --output output/phase4-ir.json
 python -m sigma2wazuh --config config/default.yaml --log-level DEBUG validate-config
 ```
 
@@ -53,20 +54,25 @@ Equivalent entry point after editable install:
 sigma2wazuh validate-config
 sigma2wazuh parse --input input/sigma_rules/curated
 sigma2wazuh analyze --input input/sigma_rules/curated
+sigma2wazuh map --input input/sigma_rules/curated
 ```
 
 Defaults when `--output` is omitted:
 
 - `parse` → `output/phase2-parse.json`
 - `analyze` → `output/phase3-support.json`
+- `map` → `output/phase4-ir.json`
+
+`map` reads field paths from `config/field_mapping.yaml` (override with
+`--field-mapping`).
 
 Exit codes:
 
-- `0` — success (for `parse`/`analyze`: pipeline finished and report written, even if some rules FAILED/UNSUPPORTED)
+- `0` — success (for `parse`/`analyze`/`map`: pipeline finished and report written, even if some rules FAILED/UNSUPPORTED/map_failed)
 - `1` — configuration or runtime error
 - `2` — CLI usage/syntax error (argparse default)
 
-There is no `convert` command in Phase 3.
+There is no `convert` command in Phase 4.
 
 ## Tests
 
@@ -74,14 +80,16 @@ There is no `convert` command in Phase 3.
 python -m pytest -q
 ```
 
-This runs Phase 0–3 tests.
+This runs Phase 0–4 tests.
 
-## Layout (Phase 3)
+## Layout (Phase 4)
 
-- `src/sigma2wazuh/` — package (`cli`, `config`, `logging_setup`, `parsing`, `support_analyzer`)
+- `src/sigma2wazuh/` — package (`cli`, `config`, `logging_setup`, `parsing`, `support_analyzer`, `mapper`)
 - `config/default.yaml` — default config (paths relative to project root)
+- `config/field_mapping.yaml` — lab-verified Sigma → Wazuh field paths (U-01)
 - `output/` — generated artifacts (gitignored except `.gitkeep`)
 - `scripts/` — Phase 0 dataset tooling (unchanged)
 - `input/sigma_rules/` — pinned SigmaHQ snapshot from Phase 0
 - `tests/fixtures/phase2/` — parser fixtures
-- `tests/fixtures/phase3/` — support-analyzer fixtures
+- `tests/fixtures/phase3/` — support-analyzer fixtures (also reused by Phase 4 eligible cases)
+- `tests/fixtures/phase4/` — map-only fixtures (wildcard, incomplete mapping)

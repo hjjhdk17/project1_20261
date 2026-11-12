@@ -1,0 +1,11 @@
+# Field mapping thiếu User — dùng để test FIELD_MAPPING_MISSING.
+version: 1
+fields:
+  Image:
+    wazuh_field: win.eventdata.image
+  CommandLine:
+    wazuh_field: win.eventdata.commandLine
+  ParentImage:
+    wazuh_field: win.eventdata.parentImage
+  OriginalFileName:
+    wazuh_field: win.eventdata.originalFileName

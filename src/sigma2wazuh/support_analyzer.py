@@ -1,6 +1,8 @@
 """Phase 3: phân loại rule ELIGIBLE / UNSUPPORTED / FAILED.
 
 Reuse parse_batch từ Phase 2. Không map field, không sinh Wazuh XML.
+Phase 4 tái dùng match_mvp_condition / resolve_rule_file và đọc ``detection``
+đã gắn sẵn trên record (không đọc lại file trong mapper).
 """
 
 from __future__ import annotations
@@ -107,32 +109,53 @@ def extract_features(detection: object) -> dict[str, Any]:
     }
 
 
-def _condition_allowed(condition: str | None, selection_names: list[str]) -> bool:
-    """True nếu condition khớp một shape MVP và tên selection tồn tại khi cần."""
+def match_mvp_condition(
+    condition: str | None, selection_names: list[str]
+) -> dict[str, Any] | None:
+    """Nhận diện 1 trong 4 condition shape MVP.
+
+    Trả dict ``kind`` hoặc None nếu không khớp / selection thiếu.
+    Mapper Phase 4 dựng cây AND/OR/NOT từ kết quả này — không viết regex riêng.
+    """
     if condition is None or not condition.strip():
-        return False
+        return None
 
     names = set(selection_names)
 
     if _RE_SINGLE.match(condition):
-        return condition in names
+        if condition not in names:
+            return None
+        return {"kind": "single", "name": condition}
 
     match = _RE_ALL_OF.match(condition)
     if match:
         prefix = match.group(1)
-        return any(name.startswith(prefix) for name in names)
+        matched = sorted(n for n in selection_names if n.startswith(prefix))
+        if not matched:
+            return None
+        return {"kind": "all_of", "prefix": prefix, "names": matched}
 
     match = _RE_ONE_OF.match(condition)
     if match:
         prefix = match.group(1)
-        return any(name.startswith(prefix) for name in names)
+        matched = sorted(n for n in selection_names if n.startswith(prefix))
+        if not matched:
+            return None
+        return {"kind": "one_of", "prefix": prefix, "names": matched}
 
     match = _RE_AND_NOT.match(condition)
     if match:
         left, right = match.group(1), match.group(2)
-        return left in names and right in names
+        if left not in names or right not in names:
+            return None
+        return {"kind": "and_not", "left": left, "right": right}
 
-    return False
+    return None
+
+
+def _condition_allowed(condition: str | None, selection_names: list[str]) -> bool:
+    """True nếu condition khớp một shape MVP (wrapper mỏng quanh match_mvp_condition)."""
+    return match_mvp_condition(condition, selection_names) is not None
 
 
 def classify(features: dict[str, Any]) -> tuple[str, list[dict[str, str]]]:
@@ -193,7 +216,7 @@ def classify(features: dict[str, Any]) -> tuple[str, list[dict[str, str]]]:
     return "ELIGIBLE", []
 
 
-def _resolve_rule_file(
+def resolve_rule_file(
     record: dict[str, Any],
     *,
     path_base: Path | None,
@@ -224,7 +247,11 @@ def analyze_batch(
     path_base: Path | None = None,
     source_commit: str | None = None,
 ) -> dict[str, Any]:
-    """Parse rồi classify. Parse lỗi → support_status null; lỗi tool → FAILED."""
+    """Parse rồi classify. Parse lỗi → support_status null; lỗi tool → FAILED.
+
+    Khi đọc YAML thành công, gắn ``detection`` vào record để Phase 4 map
+    không cần đọc lại file.
+    """
     parsed = parse_batch(
         input_path, path_base=path_base, source_commit=source_commit
     )
@@ -239,11 +266,12 @@ def analyze_batch(
             item["support_status"] = None
             item["features"] = None
             item["unsupported_features"] = []
+            item["detection"] = None
             failed += 1
             records.append(item)
             continue
 
-        path = _resolve_rule_file(
+        path = resolve_rule_file(
             item, path_base=path_base, input_path=input_resolved
         )
         if path is None:
@@ -256,6 +284,7 @@ def analyze_batch(
                     "message": "Cannot re-read rule file for feature extraction.",
                 }
             ]
+            item["detection"] = None
             failed += 1
             records.append(item)
             continue
@@ -272,6 +301,7 @@ def analyze_batch(
                     "message": f"{type(exc).__name__}: {exc}",
                 }
             ]
+            item["detection"] = None
             failed += 1
             records.append(item)
             continue
@@ -282,6 +312,7 @@ def analyze_batch(
         item["support_status"] = status
         item["features"] = features
         item["unsupported_features"] = reasons
+        item["detection"] = detection  # Phase 4 đọc từ đây
         if status == "ELIGIBLE":
             eligible += 1
         else:
@@ -308,4 +339,6 @@ __all__ = [
     "analyze_batch",
     "classify",
     "extract_features",
+    "match_mvp_condition",
+    "resolve_rule_file",
 ]

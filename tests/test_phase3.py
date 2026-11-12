@@ -102,7 +102,7 @@ def test_tool_error_is_failed(monkeypatch: pytest.MonkeyPatch) -> None:
     # Parse OK nhưng không resolve lại được file → FAILED, không cộng unsupported.
     import sigma2wazuh.support_analyzer as sa
 
-    monkeypatch.setattr(sa, "_resolve_rule_file", lambda *a, **k: None)
+    monkeypatch.setattr(sa, "resolve_rule_file", lambda *a, **k: None)
     report = analyze_batch(FIXTURES, path_base=FIXTURES)
     failed = [r for r in report["records"] if r["support_status"] == "FAILED"]
     assert failed
@@ -194,6 +194,7 @@ def test_help_lists_analyze_not_convert(capsys: pytest.CaptureFixture[str]) -> N
     assert excinfo.value.code == 0
     help_text = capsys.readouterr().out
     assert "analyze" in help_text
+    assert "map" in help_text
     assert "{convert}" not in help_text
 
 

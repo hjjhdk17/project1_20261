@@ -1,4 +1,4 @@
-"""CLI: validate-config, parse, analyze. Chưa có lệnh convert."""
+"""CLI: validate-config, parse, analyze, map. Chưa có lệnh convert."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from pathlib import Path
 from sigma2wazuh import __version__
 from sigma2wazuh.config import ConfigError, find_project_root, load_config
 from sigma2wazuh.logging_setup import resolve_level, setup_logging
+from sigma2wazuh.mapper import map_batch
 from sigma2wazuh.parsing import parse_batch, write_report
 from sigma2wazuh.support_analyzer import analyze_batch
 
@@ -17,7 +18,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Tạo parser gốc với flag global và các subcommand hiện có."""
     parser = argparse.ArgumentParser(
         prog="sigma2wazuh",
-        description="Sigma-to-Wazuh converter (Phase 3: parse + support analyze).",
+        description="Sigma-to-Wazuh converter (Phase 4: parse + analyze + map IR).",
     )
     parser.add_argument(
         "--version",
@@ -79,6 +80,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="JSON output path (default: <paths.output>/phase3-support.json).",
     )
     analyze_cmd.set_defaults(func=cmd_analyze)
+
+    map_cmd = subparsers.add_parser(
+        "map",
+        help="Analyze then map ELIGIBLE rules to thin IR JSON (no Wazuh XML).",
+    )
+    map_cmd.add_argument(
+        "--input",
+        required=True,
+        type=Path,
+        help="Sigma rule file or directory to map.",
+    )
+    map_cmd.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="JSON output path (default: <paths.output>/phase4-ir.json).",
+    )
+    map_cmd.add_argument(
+        "--field-mapping",
+        type=Path,
+        default=None,
+        help="Field mapping YAML (default: config/field_mapping.yaml under project root).",
+    )
+    map_cmd.set_defaults(func=cmd_map)
 
     return parser
 
@@ -200,6 +225,65 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             f"eligible={summary['eligible']} "
             f"unsupported={summary['unsupported']} "
             f"failed={summary['failed']} "
+            f"output={output_path}"
+        )
+        return 0
+    except ConfigError as exc:
+        print(f"ConfigError: {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:  # noqa: BLE001 — CLI boundary
+        print(f"Error: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_map(args: argparse.Namespace) -> int:
+    """Analyze + map ELIGIBLE → IR; ghi báo cáo JSON."""
+    try:
+        cfg = load_config(args.config)
+        level = resolve_level(
+            cli_level=args.log_level,
+            config_level=cfg.logging_level,
+        )
+        logger = setup_logging(level)
+
+        root = find_project_root()
+        input_path = args.input.expanduser()
+        output_path = (
+            args.output.expanduser()
+            if args.output is not None
+            else cfg.output_dir / "phase4-ir.json"
+        )
+        field_mapping = (
+            args.field_mapping.expanduser()
+            if args.field_mapping is not None
+            else root / "config" / "field_mapping.yaml"
+        )
+
+        report = map_batch(
+            input_path,
+            path_base=root,
+            field_mapping_path=field_mapping,
+        )
+        write_report(report, output_path)
+
+        summary = report["summary"]
+        logger.info(
+            "Map done: total=%s mapped=%s skipped_unsupported=%s "
+            "skipped_failed=%s map_failed=%s output=%s",
+            summary["total"],
+            summary["mapped"],
+            summary["skipped_unsupported"],
+            summary["skipped_failed"],
+            summary["map_failed"],
+            output_path,
+        )
+        print(
+            "Map OK: "
+            f"total={summary['total']} "
+            f"mapped={summary['mapped']} "
+            f"skipped_unsupported={summary['skipped_unsupported']} "
+            f"skipped_failed={summary['skipped_failed']} "
+            f"map_failed={summary['map_failed']} "
             f"output={output_path}"
         )
         return 0

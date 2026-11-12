@@ -1,0 +1,46 @@
+# FR-06 / U-01 — lab-verified Sigma → Wazuh field paths
+# Locked 2026-11-12 from Windows Sysmon Event ID 1 alerts (agent windows11-lab).
+#
+# Indexer JSON nests values under `_source.data.win.eventdata.*`.
+# Wazuh rule XML `<field name="...">` uses paths WITHOUT the leading `data.`
+# prefix: `win.eventdata.*`. Do not treat those two forms as interchangeable.
+
+version: 1
+
+logsource:
+  product: windows
+  category: process_creation
+  channel: Microsoft-Windows-Sysmon/Operational
+  event_id: "1"
+  decoder: windows_eventchannel
+
+evidence:
+  lab_agent:
+    id: "002"
+    name: windows11-lab
+    ip: 192.168.56.20
+  source_index: wazuh-alerts-4.x-2026.11.12
+  excerpt: docs/evidence/u01-sysmon-eid1-alert-excerpt.json
+  full_export_host_path: /home/binh/Downloads/sysmon_eid1_samples.txt
+  note: >
+    Evidence is from wazuh-alerts (events that already matched a rule).
+    Decoded field paths under data.win.eventdata match the Sysmon EID 1
+    shape needed for U-01; archives would show the same decode paths.
+
+# Paths for Wazuh <field name="..."> generation (Phase 4+).
+fields:
+  Image:
+    wazuh_field: win.eventdata.image
+    evidence_json_path: data.win.eventdata.image
+  CommandLine:
+    wazuh_field: win.eventdata.commandLine
+    evidence_json_path: data.win.eventdata.commandLine
+  ParentImage:
+    wazuh_field: win.eventdata.parentImage
+    evidence_json_path: data.win.eventdata.parentImage
+  OriginalFileName:
+    wazuh_field: win.eventdata.originalFileName
+    evidence_json_path: data.win.eventdata.originalFileName
+  User:
+    wazuh_field: win.eventdata.user
+    evidence_json_path: data.win.eventdata.user
