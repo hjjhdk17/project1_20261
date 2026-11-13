@@ -395,69 +395,167 @@ def generate_batch(
     return root, report_records
 
 
-def validate_xml_tree(root: ET.Element) -> tuple[bool, list[dict[str, str]]]:
-    """Parse lại XML; kiểm tra thẻ bắt buộc, ID unique, regex compile (Python re)."""
+def _validate_rule_element(rule: ET.Element) -> list[dict[str, str]]:
+    """Kiểm tra một <rule>: thẻ bắt buộc, field type, regex compile (Python re)."""
     diags: list[dict[str, str]] = []
+    rid = rule.get("id")
+    if not rid:
+        diags.append(_diag("RULE_ID_MISSING", "A <rule> has no id attribute"))
+
+    level = rule.get("level")
+    if level is None or level == "":
+        diags.append(_diag("RULE_LEVEL_MISSING", f"Rule {rid} missing level"))
+
+    if_sid_el = rule.find("if_sid")
+    if if_sid_el is None or not (if_sid_el.text or "").strip():
+        diags.append(_diag("IF_SID_MISSING", f"Rule {rid} missing if_sid"))
+
+    fields = rule.findall("field")
+    if not fields:
+        diags.append(_diag("FIELD_MISSING", f"Rule {rid} has no <field>"))
+    for field in fields:
+        name = field.get("name")
+        if not name:
+            diags.append(_diag("FIELD_NAME_MISSING", f"Rule {rid} field without name"))
+        if field.get("type") != "pcre2":
+            diags.append(
+                _diag(
+                    "FIELD_TYPE_INVALID",
+                    f"Rule {rid} field type={field.get('type')!r}",
+                )
+            )
+        pattern = field.text or ""
+        try:
+            re.compile(pattern)
+        except re.error as exc:
+            diags.append(
+                _diag(
+                    "REGEX_COMPILE_ERROR",
+                    f"Rule {rid} field {name!r}: {exc}",
+                )
+            )
+
+    desc = rule.find("description")
+    if desc is None or not (desc.text or "").strip():
+        diags.append(_diag("DESCRIPTION_MISSING", f"Rule {rid} missing description"))
+
+    return diags
+
+
+def _collect_xml_diagnostics(
+    root: ET.Element,
+) -> tuple[list[dict[str, str]], dict[str, list[dict[str, str]]]]:
+    """Parse lại XML; tách lỗi toàn cục vs lỗi theo rule id (key luôn str)."""
+    global_diags: list[dict[str, str]] = []
+    by_rule_id: dict[str, list[dict[str, str]]] = {}
     try:
         xml_bytes = ET.tostring(root, encoding="utf-8")
         parsed = ET.fromstring(xml_bytes)
     except ET.ParseError as exc:
-        return False, [_diag("XML_PARSE_ERROR", str(exc))]
+        return [_diag("XML_PARSE_ERROR", str(exc))], {}
 
     if parsed.tag != "group":
-        diags.append(_diag("GROUP_MISSING", f"Root tag is {parsed.tag!r}, expected group"))
+        global_diags.append(
+            _diag("GROUP_MISSING", f"Root tag is {parsed.tag!r}, expected group")
+        )
 
     seen_ids: set[str] = set()
     rules = list(parsed.findall("rule"))
-    if root.findall("rule") and not rules and not diags:
-        diags.append(_diag("RULES_MISSING", "No <rule> elements under group"))
+    if root.findall("rule") and not rules and not global_diags:
+        global_diags.append(_diag("RULES_MISSING", "No <rule> elements under group"))
 
     for rule in rules:
         rid = rule.get("id")
-        level = rule.get("level")
-        if not rid:
-            diags.append(_diag("RULE_ID_MISSING", "A <rule> has no id attribute"))
-        else:
+        # Trùng ID / thiếu ID → không gắn chắc record → lỗi toàn cục.
+        if rid:
             if rid in seen_ids:
-                diags.append(_diag("RULE_ID_DUPLICATE", f"Duplicate rule id {rid}"))
+                global_diags.append(
+                    _diag("RULE_ID_DUPLICATE", f"Duplicate rule id {rid}")
+                )
             seen_ids.add(rid)
-        if level is None or level == "":
-            diags.append(_diag("RULE_LEVEL_MISSING", f"Rule {rid} missing level"))
+        rule_diags = _validate_rule_element(rule)
+        if not rid:
+            global_diags.extend(rule_diags)
+        elif rule_diags:
+            by_rule_id.setdefault(rid, []).extend(rule_diags)
 
-        if_sid_el = rule.find("if_sid")
-        if if_sid_el is None or not (if_sid_el.text or "").strip():
-            diags.append(_diag("IF_SID_MISSING", f"Rule {rid} missing if_sid"))
+    return global_diags, by_rule_id
 
-        fields = rule.findall("field")
-        if not fields:
-            diags.append(_diag("FIELD_MISSING", f"Rule {rid} has no <field>"))
-        for field in fields:
-            name = field.get("name")
-            if not name:
-                diags.append(_diag("FIELD_NAME_MISSING", f"Rule {rid} field without name"))
-            if field.get("type") != "pcre2":
-                diags.append(
-                    _diag(
-                        "FIELD_TYPE_INVALID",
-                        f"Rule {rid} field type={field.get('type')!r}",
-                    )
-                )
-            pattern = field.text or ""
-            try:
-                re.compile(pattern)
-            except re.error as exc:
-                diags.append(
-                    _diag(
-                        "REGEX_COMPILE_ERROR",
-                        f"Rule {rid} field {name!r}: {exc}",
-                    )
-                )
 
-        desc = rule.find("description")
-        if desc is None or not (desc.text or "").strip():
-            diags.append(_diag("DESCRIPTION_MISSING", f"Rule {rid} missing description"))
-
+def validate_xml_tree(root: ET.Element) -> tuple[bool, list[dict[str, str]]]:
+    """Parse lại XML; kiểm tra thẻ bắt buộc, ID unique, regex compile (Python re)."""
+    global_diags, by_rule_id = _collect_xml_diagnostics(root)
+    diags = list(global_diags)
+    for rid in sorted(by_rule_id):
+        diags.extend(by_rule_id[rid])
     return (len(diags) == 0), diags
+
+
+def _remove_rules_by_ids(root: ET.Element, id_strs: set[str]) -> None:
+    """Gỡ các <rule> có id thuộc tập (id đã chuẩn hóa str)."""
+    for child in list(root):
+        if child.tag == "rule" and child.get("id") in id_strs:
+            root.remove(child)
+
+
+def apply_xml_validation(
+    root: ET.Element,
+    records: list[dict[str, Any]],
+) -> tuple[bool, list[dict[str, str]]]:
+    """Validate theo record: rule lỗi → FAILED + gỡ đúng rule; lỗi global → fail cả batch.
+
+    Trả (ok, diagnostics_batch). ok=False chỉ khi lỗi toàn cục.
+    diagnostics_batch: lỗi global đầy đủ, hoặc summary ngắn records_failed_validation.
+    """
+    global_diags, by_rule_id = _collect_xml_diagnostics(root)
+
+    if global_diags:
+        for item in records:
+            if item["conversion_status"] == "SUCCESS":
+                item["xml_valid"] = False
+                item["diagnostics"] = list(global_diags)
+                item["conversion_status"] = "FAILED"
+                item["reason"] = "XML_VALIDATION_FAILED"
+                item["rule_ids"] = []
+            else:
+                item["xml_valid"] = None
+        # Không xuất XML khi lỗi toàn cục.
+        for child in list(root):
+            root.remove(child)
+        return False, list(global_diags)
+
+    failed_count = 0
+    for item in records:
+        if item["conversion_status"] != "SUCCESS":
+            item["xml_valid"] = None
+            continue
+
+        # rule_ids (int) vs attribute XML (str) — luôn so khớp bằng str.
+        id_strs = [str(rid) for rid in item["rule_ids"]]
+        diags: list[dict[str, str]] = []
+        for rid in id_strs:
+            diags.extend(by_rule_id.get(rid, []))
+
+        if diags:
+            failed_count += 1
+            item["xml_valid"] = False
+            item["diagnostics"] = diags
+            item["conversion_status"] = "FAILED"
+            item["reason"] = "XML_VALIDATION_FAILED"
+            _remove_rules_by_ids(root, set(id_strs))
+            item["rule_ids"] = []
+        else:
+            item["xml_valid"] = True
+
+    batch_diags: list[dict[str, str]] = []
+    if failed_count:
+        batch_diags.append(
+            _diag(
+                "RECORDS_FAILED_VALIDATION",
+                f"records_failed_validation={failed_count}",
+            )
+        )
+    return True, batch_diags
 
 
 def convert_batch(
@@ -475,24 +573,7 @@ def convert_batch(
         if_sid=if_sid,
         level_map=level_map,
     )
-    ok, diags = validate_xml_tree(root)
-
-    # xml_valid: SUCCESS → kết quả validate batch; khác → null (không có XML riêng).
-    for item in report_records:
-        if item["conversion_status"] == "SUCCESS":
-            item["xml_valid"] = ok
-            if not ok:
-                item["diagnostics"] = list(diags)
-                item["conversion_status"] = "FAILED"
-                item["reason"] = "XML_VALIDATION_FAILED"
-                item["rule_ids"] = []
-        else:
-            item["xml_valid"] = None
-
-    # Nếu validate fail: không xuất rule giả thành công — xóa hết con của group.
-    if not ok:
-        for child in list(root):
-            root.remove(child)
+    ok, diags = apply_xml_validation(root, report_records)
 
     success = sum(1 for r in report_records if r["conversion_status"] == "SUCCESS")
     unsupported = sum(
@@ -581,6 +662,7 @@ def convert_from_input(
 
 __all__ = [
     "allocate_ids",
+    "apply_xml_validation",
     "build_rule_element",
     "convert_batch",
     "convert_from_input",

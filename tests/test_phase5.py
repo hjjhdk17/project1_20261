@@ -15,8 +15,10 @@ from sigma2wazuh.config import find_project_root, load_config
 from sigma2wazuh.mapper import map_batch
 from sigma2wazuh.wazuh_generator import (
     allocate_ids,
+    apply_xml_validation,
     convert_batch,
     convert_from_input,
+    generate_batch,
     pattern_for_pred,
     plan_rules,
     validate_xml_tree,
@@ -320,6 +322,64 @@ def test_validate_xml_tree_ok() -> None:
     text = xml_to_string(report["xml_root"])
     assert "generated_at" not in text
     ET.fromstring(text)
+
+
+def test_batch_isolation_bad_regex_one_record() -> None:
+    """Một rule regex lỗi → chỉ record đó FAILED; rule tốt vẫn SUCCESS và còn trong XML."""
+    mapped_a = map_batch(
+        PHASE3 / "eligible_endswith.yml",
+        path_base=PHASE3,
+        field_mapping_path=FIELD_MAPPING,
+    )
+    mapped_b = map_batch(
+        PHASE3 / "eligible_and_not.yml",
+        path_base=PHASE3,
+        field_mapping_path=FIELD_MAPPING,
+    )
+    merged = {
+        "input": "mixed",
+        "field_mapping": mapped_a.get("field_mapping"),
+        "records": list(mapped_a["records"]) + list(mapped_b["records"]),
+    }
+    root, records = generate_batch(
+        merged["records"],
+        rule_id_base=100000,
+        if_sid=61603,
+        level_map=LEVEL_MAP,
+    )
+    success = [r for r in records if r["conversion_status"] == "SUCCESS"]
+    assert len(success) == 2
+    record_a, record_b = success[0], success[1]
+    bad_ids = {str(rid) for rid in record_a["rule_ids"]}
+    good_ids = {str(rid) for rid in record_b["rule_ids"]}
+    assert bad_ids and good_ids and bad_ids.isdisjoint(good_ids)
+
+    # Phá regex của rule thuộc record A (không đụng record B).
+    for rule in root.findall("rule"):
+        if rule.get("id") in bad_ids:
+            field = rule.find("field")
+            assert field is not None
+            field.text = "("
+            break
+
+    ok, batch_diags = apply_xml_validation(root, records)
+    assert ok is True
+    assert any(d["code"] == "RECORDS_FAILED_VALIDATION" for d in batch_diags)
+    assert "records_failed_validation=1" in batch_diags[0]["message"]
+
+    assert record_a["conversion_status"] == "FAILED"
+    assert record_a["reason"] == "XML_VALIDATION_FAILED"
+    assert record_a["xml_valid"] is False
+    assert record_a["rule_ids"] == []
+    assert any(d["code"] == "REGEX_COMPILE_ERROR" for d in record_a["diagnostics"])
+
+    assert record_b["conversion_status"] == "SUCCESS"
+    assert record_b["xml_valid"] is True
+    assert {str(rid) for rid in record_b["rule_ids"]} == good_ids
+
+    remaining = {r.get("id") for r in root.findall("rule")}
+    assert bad_ids.isdisjoint(remaining)
+    assert good_ids <= remaining
 
 
 def test_cli_convert_fixtures(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
