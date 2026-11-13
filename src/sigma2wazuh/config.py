@@ -1,10 +1,10 @@
-"""Đọc và kiểm tra cấu hình YAML của dự án (Phase 1)."""
+"""Đọc và kiểm tra cấu hình YAML của dự án."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import yaml
 
@@ -28,6 +28,10 @@ class ProjectConfig:
     output_dir: Path
     reports_dir: Path
     logging_level: str
+    # Phase 5 — sinh XML Wazuh (từ nhánh wazuh: trong YAML).
+    wazuh_rule_id_base: int
+    wazuh_if_sid: int
+    wazuh_level_map: Mapping[str, int]
 
 
 def find_project_root(start: Path | None = None) -> Path:
@@ -65,6 +69,18 @@ def _require_str(data: dict[str, Any], key: str, label: str) -> str:
     return value
 
 
+def _require_int(data: dict[str, Any], key: str, label: str) -> int:
+    """Lấy một key bắt buộc kiểu int (YAML có thể trả int)."""
+    if key not in data:
+        raise ConfigError(f"Missing required key: {label}")
+    value = data[key]
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ConfigError(
+            f"Key {label} must be an integer, got {type(value).__name__}"
+        )
+    return value
+
+
 def _resolve_path(project_root: Path, relative: str, label: str) -> Path:
     """Resolve path trong YAML theo project root (không theo CWD)."""
     path = Path(relative)
@@ -73,6 +89,39 @@ def _resolve_path(project_root: Path, relative: str, label: str) -> Path:
     if not relative.strip():
         raise ConfigError(f"Key {label} must be a non-empty path string")
     return (project_root / path).resolve()
+
+
+def _parse_wazuh(section: dict[str, Any]) -> dict[str, Any]:
+    """Kiểm tra nhánh wazuh: rule_id_base, if_sid, level_map."""
+    rule_id_base = _require_int(section, "rule_id_base", "wazuh.rule_id_base")
+    if_sid = _require_int(section, "if_sid", "wazuh.if_sid")
+    if rule_id_base < 0 or if_sid < 0:
+        raise ConfigError("wazuh.rule_id_base and wazuh.if_sid must be >= 0")
+
+    raw_map = _require_mapping(section.get("level_map"), "wazuh.level_map")
+    if not raw_map:
+        raise ConfigError("wazuh.level_map must be a non-empty mapping")
+    level_map: dict[str, int] = {}
+    for key, value in raw_map.items():
+        if not isinstance(key, str) or not key.strip():
+            raise ConfigError(
+                f"wazuh.level_map keys must be non-empty strings, got {key!r}"
+            )
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ConfigError(
+                f"wazuh.level_map[{key!r}] must be an integer, "
+                f"got {type(value).__name__}"
+            )
+        if value < 0 or value > 16:
+            raise ConfigError(
+                f"wazuh.level_map[{key!r}]={value} out of Wazuh level range 0..16"
+            )
+        level_map[key.strip().lower()] = value
+    return {
+        "rule_id_base": rule_id_base,
+        "if_sid": if_sid,
+        "level_map": level_map,
+    }
 
 
 def validate_raw(data: object) -> dict[str, Any]:
@@ -101,10 +150,13 @@ def validate_raw(data: object) -> dict[str, Any]:
     # Chuẩn hóa level về chữ hoa để downstream dùng thống nhất.
     logging_section = dict(logging_section)
     logging_section["level"] = level
+
+    wazuh = _parse_wazuh(_require_mapping(root.get("wazuh"), "wazuh"))
     return {
         "project": project,
         "paths": paths,
         "logging": logging_section,
+        "wazuh": wazuh,
     }
 
 
@@ -126,10 +178,14 @@ def load_config(
         raise ConfigError(f"Invalid YAML in config file {path}: {exc}") from exc
 
     checked = validate_raw(raw)
+    wazuh = checked["wazuh"]
     return ProjectConfig(
         project_name=checked["project"]["name"].strip(),
         rules_root=_resolve_path(root, checked["paths"]["rules_root"], "paths.rules_root"),
         output_dir=_resolve_path(root, checked["paths"]["output"], "paths.output"),
         reports_dir=_resolve_path(root, checked["paths"]["reports"], "paths.reports"),
         logging_level=checked["logging"]["level"],
+        wazuh_rule_id_base=wazuh["rule_id_base"],
+        wazuh_if_sid=wazuh["if_sid"],
+        wazuh_level_map=dict(wazuh["level_map"]),
     )

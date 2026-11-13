@@ -1,4 +1,4 @@
-"""CLI: validate-config, parse, analyze, map. Chưa có lệnh convert."""
+"""CLI: validate-config, parse, analyze, map, convert."""
 
 from __future__ import annotations
 
@@ -12,13 +12,14 @@ from sigma2wazuh.logging_setup import resolve_level, setup_logging
 from sigma2wazuh.mapper import map_batch
 from sigma2wazuh.parsing import parse_batch, write_report
 from sigma2wazuh.support_analyzer import analyze_batch
+from sigma2wazuh.wazuh_generator import convert_from_input, write_outputs
 
 
 def build_parser() -> argparse.ArgumentParser:
     """Tạo parser gốc với flag global và các subcommand hiện có."""
     parser = argparse.ArgumentParser(
         prog="sigma2wazuh",
-        description="Sigma-to-Wazuh converter (Phase 4: parse + analyze + map IR).",
+        description="Sigma-to-Wazuh converter (Phase 5: IR → Wazuh XML).",
     )
     parser.add_argument(
         "--version",
@@ -105,6 +106,36 @@ def build_parser() -> argparse.ArgumentParser:
     )
     map_cmd.set_defaults(func=cmd_map)
 
+    convert_cmd = subparsers.add_parser(
+        "convert",
+        help="Map ELIGIBLE rules then generate Wazuh XML + conversion JSON report.",
+    )
+    convert_cmd.add_argument(
+        "--input",
+        required=True,
+        type=Path,
+        help="Sigma rule file or directory to convert.",
+    )
+    convert_cmd.add_argument(
+        "--output-xml",
+        type=Path,
+        default=None,
+        help="Wazuh XML output (default: <paths.output>/phase5-rules.xml).",
+    )
+    convert_cmd.add_argument(
+        "--output-report",
+        type=Path,
+        default=None,
+        help="JSON report path (default: <paths.output>/phase5-report.json).",
+    )
+    convert_cmd.add_argument(
+        "--field-mapping",
+        type=Path,
+        default=None,
+        help="Field mapping YAML (default: config/field_mapping.yaml under project root).",
+    )
+    convert_cmd.set_defaults(func=cmd_convert)
+
     return parser
 
 
@@ -118,12 +149,15 @@ def cmd_validate_config(args: argparse.Namespace) -> int:
         )
         logger = setup_logging(level)
         logger.info(
-            "Config OK: project=%s rules_root=%s output=%s reports=%s level=%s",
+            "Config OK: project=%s rules_root=%s output=%s reports=%s level=%s "
+            "wazuh_base=%s if_sid=%s",
             cfg.project_name,
             cfg.rules_root,
             cfg.output_dir,
             cfg.reports_dir,
             cfg.logging_level,
+            cfg.wazuh_rule_id_base,
+            cfg.wazuh_if_sid,
         )
         print(
             "Config OK: "
@@ -131,7 +165,9 @@ def cmd_validate_config(args: argparse.Namespace) -> int:
             f"rules_root={cfg.rules_root} "
             f"output={cfg.output_dir} "
             f"reports={cfg.reports_dir} "
-            f"logging.level={cfg.logging_level}"
+            f"logging.level={cfg.logging_level} "
+            f"wazuh.rule_id_base={cfg.wazuh_rule_id_base} "
+            f"wazuh.if_sid={cfg.wazuh_if_sid}"
         )
         return 0
     except ConfigError as exc:
@@ -285,6 +321,77 @@ def cmd_map(args: argparse.Namespace) -> int:
             f"skipped_failed={summary['skipped_failed']} "
             f"map_failed={summary['map_failed']} "
             f"output={output_path}"
+        )
+        return 0
+    except ConfigError as exc:
+        print(f"ConfigError: {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:  # noqa: BLE001 — CLI boundary
+        print(f"Error: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_convert(args: argparse.Namespace) -> int:
+    """map_batch + sinh Wazuh XML + report JSON."""
+    try:
+        cfg = load_config(args.config)
+        level = resolve_level(
+            cli_level=args.log_level,
+            config_level=cfg.logging_level,
+        )
+        logger = setup_logging(level)
+
+        root = find_project_root()
+        input_path = args.input.expanduser()
+        xml_path = (
+            args.output_xml.expanduser()
+            if args.output_xml is not None
+            else cfg.output_dir / "phase5-rules.xml"
+        )
+        report_path = (
+            args.output_report.expanduser()
+            if args.output_report is not None
+            else cfg.output_dir / "phase5-report.json"
+        )
+        field_mapping = (
+            args.field_mapping.expanduser()
+            if args.field_mapping is not None
+            else root / "config" / "field_mapping.yaml"
+        )
+
+        report = convert_from_input(
+            input_path,
+            path_base=root,
+            field_mapping_path=field_mapping,
+            rule_id_base=cfg.wazuh_rule_id_base,
+            if_sid=cfg.wazuh_if_sid,
+            level_map=cfg.wazuh_level_map,
+        )
+        write_outputs(report, xml_path, report_path)
+
+        summary = report["summary"]
+        logger.info(
+            "Convert done: total=%s success=%s unsupported=%s failed=%s "
+            "skipped=%s rules=%s xml=%s report=%s",
+            summary["total"],
+            summary["success"],
+            summary["unsupported"],
+            summary["failed"],
+            summary["skipped"],
+            summary["rule_elements"],
+            xml_path,
+            report_path,
+        )
+        print(
+            "Convert OK: "
+            f"total={summary['total']} "
+            f"success={summary['success']} "
+            f"unsupported={summary['unsupported']} "
+            f"failed={summary['failed']} "
+            f"skipped={summary['skipped']} "
+            f"rule_elements={summary['rule_elements']} "
+            f"xml={xml_path} "
+            f"report={report_path}"
         )
         return 0
     except ConfigError as exc:

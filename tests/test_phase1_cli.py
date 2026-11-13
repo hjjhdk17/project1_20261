@@ -27,6 +27,17 @@ def _valid_payload() -> dict:
             "reports": "reports",
         },
         "logging": {"level": "WARNING"},
+        "wazuh": {
+            "rule_id_base": 100000,
+            "if_sid": 61603,
+            "level_map": {
+                "informational": 3,
+                "low": 5,
+                "medium": 8,
+                "high": 12,
+                "critical": 15,
+            },
+        },
     }
 
 
@@ -80,13 +91,13 @@ def test_argparse_unknown_exits_two() -> None:
     assert excinfo.value.code == 2
 
 
-def test_help_does_not_list_convert(capsys: pytest.CaptureFixture[str]) -> None:
+def test_help_lists_convert(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as excinfo:
         main(["--help"])
     assert excinfo.value.code == 0
     help_text = capsys.readouterr().out
     assert "validate-config" in help_text
     assert "parse" in help_text
-    # Không có subcommand convert; từ "converter" trong mô tả vẫn được phép.
-    assert "{convert}" not in help_text
-    assert "\n  convert " not in help_text
+    assert "map" in help_text
+    # Phase 5: subcommand convert có trong help.
+    assert "convert" in help_text

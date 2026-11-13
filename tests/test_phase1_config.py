@@ -25,13 +25,24 @@ def _valid_payload() -> dict:
             "reports": "reports",
         },
         "logging": {"level": "INFO"},
+        "wazuh": {
+            "rule_id_base": 100000,
+            "if_sid": 61603,
+            "level_map": {
+                "informational": 3,
+                "low": 5,
+                "medium": 8,
+                "high": 12,
+                "critical": 15,
+            },
+        },
     }
 
 
 def test_package_importable() -> None:
     import sigma2wazuh
 
-    assert sigma2wazuh.__version__ == "0.4.0"
+    assert sigma2wazuh.__version__ == "0.5.0"
 
 
 def test_default_config_loads() -> None:
@@ -42,6 +53,10 @@ def test_default_config_loads() -> None:
     assert cfg.output_dir == (root / "output").resolve()
     assert cfg.reports_dir == (root / "reports").resolve()
     assert cfg.logging_level == "INFO"
+    assert cfg.wazuh_rule_id_base == 100000
+    assert cfg.wazuh_if_sid == 61603
+    assert cfg.wazuh_level_map["medium"] == 8
+    assert cfg.wazuh_level_map["critical"] == 15
 
 
 def test_missing_key_raises() -> None:

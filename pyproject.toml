@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sigma2wazuh"
-version = "0.4.0"
-description = "Academic Sigma-to-Wazuh converter prototype (Phase 4: thin IR mapping)"
+version = "0.5.0"
+description = "Academic Sigma-to-Wazuh converter prototype (Phase 5: Wazuh XML generation)"
 readme = "README.md"
 requires-python = ">=3.11,<4"
 # Same direct pins as requirements.txt (method C). Keep both files in sync.
