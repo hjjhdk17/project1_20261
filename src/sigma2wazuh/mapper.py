@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from sigma.types import SigmaString
 
 from sigma2wazuh import __version__
 from sigma2wazuh.support_analyzer import analyze_batch, match_mvp_condition
@@ -44,13 +45,36 @@ def _as_value_list(raw: object) -> list[Any]:
     return [raw]
 
 
-def _has_wildcard(values: list[Any]) -> bool:
-    """True nếu bất kỳ value str nào chứa * hoặc ? (fail-safe MVP)."""
-    return any(isinstance(v, str) and ("*" in v or "?" in v) for v in values)
-
-
 def _diag(code: str, message: str) -> dict[str, str]:
     return {"code": code, "message": message}
+
+
+def _decode_sigma_values(
+    values: list[Any],
+    sigma_field: str,
+) -> tuple[list[Any] | None, list[dict[str, str]]]:
+    """int giữ nguyên; str → SigmaString một lần: contains_special → FAILED, else to_plain.
+
+    Không check wildcard trên chuỗi đã decode (to_plain làm * wildcard và \\* literal
+    đều thành '*'). Dùng contains_special() trước; IR lấy to_plain(regex=True) để
+    không re-escape * / ? (cần cho literal đã escape trong Sigma).
+    """
+    out: list[Any] = []
+    for v in values:
+        if isinstance(v, int):
+            out.append(v)
+            continue
+        s = SigmaString(v)
+        if s.contains_special():
+            return None, [
+                _diag(
+                    "WILDCARD_UNSUPPORTED",
+                    f"Wildcard * or ? in values for field {sigma_field!r}: {values!r}",
+                )
+            ]
+        # regex=True: literal thật (vd a\\*b → a*b), không gắn lại \\ trước * / ?.
+        out.append(s.to_plain(regex=True))
+    return out, []
 
 
 def _make_pred(
@@ -75,11 +99,15 @@ def _make_pred(
                 f"Empty or non-str/int values for field {sigma_field!r}: {values!r}",
             )
         ]
-    if _has_wildcard(values):
+    decoded, wild_err = _decode_sigma_values(values, sigma_field)
+    if wild_err or decoded is None:
+        return None, wild_err
+    # Chuỗi rỗng sau decode → regex flag-only; MVP không match field rỗng (D-19).
+    if any(isinstance(v, str) and v == "" for v in decoded):
         return None, [
             _diag(
-                "WILDCARD_UNSUPPORTED",
-                f"Wildcard * or ? in values for field {sigma_field!r}: {values!r}",
+                "VALUE_UNSUPPORTED",
+                f"Empty or non-str/int values for field {sigma_field!r}: {values!r}",
             )
         ]
     return {
@@ -87,7 +115,7 @@ def _make_pred(
         "sigma_field": sigma_field,
         "target_field": field_map[sigma_field],
         "op": op,
-        "values": values,
+        "values": decoded,
         "case_insensitive": True,
     }, []
 

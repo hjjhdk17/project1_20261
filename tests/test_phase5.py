@@ -88,13 +88,14 @@ def test_pattern_ops_and_case_insensitive() -> None:
         _pred("win.eventdata.parentImage", "startswith", [r"C:\Windows"])
     )
     assert starts.startswith("(?i)^")
-    assert r"C:\\Windows" in starts
+    # Form Wazuh: mỗi \ đã nhân đôi trước re.escape.
+    assert re.search(starts, r"C:\\Windows\\System32\\cmd.exe")
 
     ends = pattern_for_pred(
         _pred("win.eventdata.image", "endswith", [r"\cmd.exe"])
     )
-    assert ends.endswith(r"\\cmd\.exe$") or ends.endswith(r"cmd\.exe$")
     assert ends.startswith("(?i)")
+    assert re.search(ends, r"C:\\Windows\\System32\\cmd.exe")
 
     contains = pattern_for_pred(
         _pred("win.eventdata.commandLine", "contains", ["DumpStack.log"])
@@ -104,7 +105,9 @@ def test_pattern_ops_and_case_insensitive() -> None:
     all_pat = pattern_for_pred(
         _pred("win.eventdata.commandLine", "contains_all", ["-enc", "bypass"])
     )
-    assert all_pat == r"(?i)(?=.*\-enc)(?=.*bypass)"
+    assert all_pat == r"(?i)(?s)(?=.*\-enc)(?=.*bypass)"
+    # (?s): . khớp xuống dòng giữa hai token.
+    assert re.search(all_pat, "-enc\nbypass")
 
     multi = pattern_for_pred(
         _pred("win.eventdata.image", "endswith", [r"\a.exe", r"\b.exe"])
@@ -112,16 +115,78 @@ def test_pattern_ops_and_case_insensitive() -> None:
     assert multi.startswith("(?i)")
     assert multi.endswith("$")
     assert "|" in multi
+    assert re.search(multi, r"C:\\temp\\a.exe")
 
 
-def test_pattern_escape_specials() -> None:
-    # Escape regex + ký tự XML sẽ do ElementTree xử lý khi serialize.
-    raw = r"a.\b(c)&<d>"
-    pat = pattern_for_pred(_pred("win.eventdata.commandLine", "contains", [raw]))
-    assert r"\." in pat
-    assert r"\(" in pat
-    assert "&" in pat or r"\&" in pat
-    re.compile(pat)
+def test_pattern_backslash_matches_wazuh_stored_form() -> None:
+    """Khớp chuỗi dạng Wazuh lưu (2 dấu \\); negative endswith không khớp xmsiexec."""
+    ends = pattern_for_pred(
+        _pred("win.eventdata.image", "endswith", [r"\msiexec.exe"])
+    )
+    assert re.search(ends, r"C:\\Windows\\System32\\msiexec.exe")
+    assert not re.search(ends, r"C:\\Windows\\System32\\xmsiexec.exe")
+
+    eq = pattern_for_pred(
+        _pred(
+            "win.eventdata.image",
+            "eq",
+            [r"C:\Windows\System32\wpbbin.exe"],
+        )
+    )
+    assert re.search(eq, r"C:\\Windows\\System32\\wpbbin.exe")
+    assert not re.search(eq, r"C:\Windows\System32\wpbbin.exe")
+
+    contains = pattern_for_pred(
+        _pred(
+            "win.eventdata.commandLine",
+            "contains",
+            [r"\Services\VSS\Diag"],
+        )
+    )
+    assert re.search(contains, r"reg add \\Services\\VSS\\Diag /d Disabled")
+
+    # UNC literal 2 dấu \ → sau nhân đôi khớp 4 dấu trong field Wazuh.
+    unc = pattern_for_pred(
+        _pred("win.eventdata.image", "contains", [r"\\server\share"])
+    )
+    assert re.search(unc, r"\\\\server\\share\\file.exe")
+
+
+def test_pattern_escape_xml_specialchars_match_literal() -> None:
+    """Sau re.escape: \\&→\\x26, <→\\x3C, >→\\x3E; phải khớp chuỗi thật (không chỉ compile)."""
+    amp = pattern_for_pred(
+        _pred("win.eventdata.commandLine", "contains", ["cmd&&"])
+    )
+    assert r"\x26" in amp
+    assert "&" not in amp.replace(r"\x26", "")
+    assert re.search(amp, "prefix cmd&& suffix")
+
+    null = pattern_for_pred(
+        _pred("win.eventdata.commandLine", "contains", ["<NULL>"])
+    )
+    assert r"\x3C" in null and r"\x3E" in null
+    assert "<" not in null and ">" not in null
+    assert re.search(null, "val=<NULL> end")
+
+    gt = pattern_for_pred(
+        _pred("win.eventdata.commandLine", "contains", ["a>b"])
+    )
+    assert r"\x3E" in gt
+    assert ">" not in gt
+    assert re.search(gt, "x a>b y")
+
+    # Serialize XML không được chứa entity &amp;/&lt;/&gt; trong pattern.
+    report = _convert_path(PHASE3 / "eligible_endswith.yml")
+    # Ép một field chứa && để kiểm tra serialize.
+    field = report["xml_root"].find("./rule/field")
+    assert field is not None
+    field.text = pattern_for_pred(
+        _pred("win.eventdata.commandLine", "contains", ["&&"])
+    )
+    text = xml_to_string(report["xml_root"])
+    assert "&amp;" not in text
+    assert r"\x26" in text
+    re.compile(field.text)
 
 
 def test_and_not_xml_shape() -> None:
@@ -139,10 +204,11 @@ def test_and_not_xml_shape() -> None:
     assert len(fields) == 2
     assert fields[0].get("name") == "win.eventdata.image"
     assert fields[0].get("negate") is None
-    assert fields[0].text == r"(?i)\\msiexec\.exe$"
+    # Nhân đôi \ (D-21): endswith \msiexec → pattern \\\\msiexec
+    assert fields[0].text == r"(?i)\\\\msiexec\.exe$"
     assert fields[1].get("name") == "win.eventdata.parentImage"
     assert fields[1].get("negate") == "yes"
-    assert fields[1].text == r"(?i)\\explorer\.exe$"
+    assert fields[1].text == r"(?i)\\\\explorer\.exe$"
     assert rule.findtext("description") == "Phase3 Fixture Eligible And Not"
     info = rule.find("info")
     assert info is not None and info.get("type") == "text"
@@ -173,7 +239,7 @@ def test_contains_all_and_startswith_eq() -> None:
     all_rep = _convert_path(PHASE3 / "eligible_contains_all.yml")
     field = all_rep["xml_root"].find("./rule/field")
     assert field is not None
-    assert field.text == r"(?i)(?=.*\-enc)(?=.*bypass)"
+    assert field.text == r"(?i)(?s)(?=.*\-enc)(?=.*bypass)"
 
     start_rep = _convert_path(PHASE3 / "eligible_startswith_user.yml")
     fields = start_rep["xml_root"].findall("./rule/field")
@@ -380,6 +446,41 @@ def test_batch_isolation_bad_regex_one_record() -> None:
     remaining = {r.get("id") for r in root.findall("rule")}
     assert bad_ids.isdisjoint(remaining)
     assert good_ids <= remaining
+
+
+def test_apply_xml_validation_duplicate_id_fails_batch() -> None:
+    """Trùng rule id → lỗi toàn cục: mọi SUCCESS → FAILED, group bị xóa sạch."""
+    mapped_a = map_batch(
+        PHASE3 / "eligible_endswith.yml",
+        path_base=PHASE3,
+        field_mapping_path=FIELD_MAPPING,
+    )
+    mapped_b = map_batch(
+        PHASE3 / "eligible_and_not.yml",
+        path_base=PHASE3,
+        field_mapping_path=FIELD_MAPPING,
+    )
+    root, records = generate_batch(
+        list(mapped_a["records"]) + list(mapped_b["records"]),
+        rule_id_base=100000,
+        if_sid=61603,
+        level_map=LEVEL_MAP,
+    )
+    success = [r for r in records if r["conversion_status"] == "SUCCESS"]
+    assert len(success) == 2
+    rules = root.findall("rule")
+    assert len(rules) >= 2
+    rules[1].set("id", rules[0].get("id"))
+
+    ok, batch_diags = apply_xml_validation(root, records)
+    assert ok is False
+    assert any(d["code"] == "RULE_ID_DUPLICATE" for d in batch_diags)
+    for item in success:
+        assert item["conversion_status"] == "FAILED"
+        assert item["reason"] == "XML_VALIDATION_FAILED"
+        assert item["xml_valid"] is False
+        assert item["rule_ids"] == []
+    assert root.findall("rule") == []
 
 
 def test_cli_convert_fixtures(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

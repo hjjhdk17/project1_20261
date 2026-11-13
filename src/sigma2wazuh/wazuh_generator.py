@@ -23,16 +23,36 @@ def _diag(code: str, message: str) -> dict[str, str]:
     return {"code": code, "message": message}
 
 
+def _escape_value_for_wazuh(value: object) -> str:
+    r"""Literal IR → pattern cho field Wazuh win.eventdata.* (decode Sigma ở mapper).
+
+    (b) Nhân đôi mỗi \ — lab Sysmon EID 1: field lưu \ Windows thành \\ 
+        (docs/evidence/u01-sysmon-eid1-alert-excerpt.json; xác nhận 13/11 windows11-lab).
+    (c) re.escape
+    (d) \& → \x26, < → \x3C, > → \x3E (Wazuh XML không decode entity)
+    """
+    # (b) khớp dạng lưu trong alert (hai dấu \), trước khi escape regex.
+    doubled = str(value).replace("\\", "\\\\")
+    # (c)
+    escaped = re.escape(doubled)
+    # (d) re.escape biến & → \&; < và > giữ nguyên — tránh ElementTree ghi &amp;/&lt;/&gt;.
+    return (
+        escaped.replace(r"\&", r"\x26")
+        .replace("<", r"\x3C")
+        .replace(">", r"\x3E")
+    )
+
+
 def pattern_for_pred(pred: dict[str, Any]) -> str:
     """Một pred IR → chuỗi regex PCRE2-ish (escape từng value; neo theo op)."""
     op = pred["op"]
     values = pred["values"]
-    escaped = [re.escape(str(v)) for v in values]
+    escaped = [_escape_value_for_wazuh(v) for v in values]
     case_i = bool(pred.get("case_insensitive"))
 
     if op == "contains_all":
-        # Lookahead độc lập cho từng value (AND trên cùng field).
-        body = "".join(f"(?=.*{e})" for e in escaped)
+        # Lookahead độc lập; (?s) để . khớp cả xuống dòng.
+        body = "(?s)" + "".join(f"(?=.*{e})" for e in escaped)
     elif op == "eq":
         body = f"^({'|'.join(escaped)})$" if len(escaped) > 1 else f"^{escaped[0]}$"
     elif op == "startswith":

@@ -162,6 +162,40 @@ def test_wildcard_map_failed() -> None:
     assert any(d["code"] == "WILDCARD_UNSUPPORTED" for d in record["map_diagnostics"])
 
 
+def test_sigma_decode_backslash_and_literal_star() -> None:
+    """Decode SigmaString: path 1 \\ giữ nguyên; UNC \\\\ → \\ ; \\* literal vs * wildcard."""
+    mapping = load_field_mapping(FIELD_MAPPING)
+
+    path_node, path_err = build_selection_node(
+        {"Image": r"C:\Windows\x.exe"}, mapping
+    )
+    assert path_err == []
+    assert path_node is not None
+    assert path_node["children"][0]["values"] == [r"C:\Windows\x.exe"]
+
+    # Hai \\ trước server (dạng sau YAML) → IR một \\server\share.
+    unc_node, unc_err = build_selection_node(
+        {"Image": r"\\server\share"}, mapping
+    )
+    assert unc_err == []
+    assert unc_node is not None
+    assert unc_node["children"][0]["values"] == [r"\server\share"]
+
+    lit_node, lit_err = build_selection_node(
+        {"CommandLine|contains": r"a\*b"}, mapping
+    )
+    assert lit_err == []
+    assert lit_node is not None
+    assert lit_node["children"][0]["values"] == ["a*b"]
+    assert lit_node["children"][0]["op"] == "contains"
+
+    wild_node, wild_err = build_selection_node(
+        {"CommandLine|contains": "a*b"}, mapping
+    )
+    assert wild_node is None
+    assert any(d["code"] == "WILDCARD_UNSUPPORTED" for d in wild_err)
+
+
 def test_value_unsupported_null_and_empty_list() -> None:
     """null / list rỗng vẫn ELIGIBLE ở Phase 3 nhưng mapper phải FAILED."""
     report = map_batch(
@@ -183,6 +217,12 @@ def test_value_unsupported_null_and_empty_list() -> None:
     )
     assert empty_node is None
     assert any(d["code"] == "VALUE_UNSUPPORTED" for d in empty_err)
+
+    blank_node, blank_err = build_selection_node(
+        {"CommandLine|contains": ""}, mapping
+    )
+    assert blank_node is None
+    assert any(d["code"] == "VALUE_UNSUPPORTED" for d in blank_err)
 
     bad_mod_node, bad_mod_err = build_selection_node(
         {"Image|re": "cmd"}, mapping
