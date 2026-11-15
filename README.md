@@ -2,6 +2,8 @@
 
 Academic Python prototype. Phase 5 converts **MAPPED** thin IR records into
 Wazuh XML rules (`<field type="pcre2">`) plus a JSON conversion report.
+Phase 6 checks those rules against synthetic events in pytest (`evaluator.match_rules`).
+The matcher only looks at `<field>` and assumes the event already passed `if_sid`.
 
 Design documents stay in `project1_sigma_wazuh_design/` (read-only reference).
 Phase 0 dataset tools remain under `scripts/`.
@@ -83,11 +85,11 @@ Exit codes:
 python -m pytest -q
 ```
 
-This runs Phase 0–5 tests.
+This runs Phase 0–6 tests.
 
-## Layout (Phase 5)
+## Layout (Phase 6)
 
-- `src/sigma2wazuh/` — package (`cli`, `config`, `logging_setup`, `parsing`, `support_analyzer`, `mapper`, `wazuh_generator`)
+- `src/sigma2wazuh/` — package (`cli`, `config`, `logging_setup`, `parsing`, `support_analyzer`, `mapper`, `wazuh_generator`, `evaluator`)
 - `config/default.yaml` — default config (paths + `wazuh:`)
 - `config/field_mapping.yaml` — lab-verified Sigma → Wazuh field paths (U-01)
 - `output/` — generated artifacts (gitignored except `.gitkeep`)

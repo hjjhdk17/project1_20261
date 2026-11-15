@@ -1,3 +1,3 @@
-"""Gói sigma2wazuh — parse + analyze + map IR + convert Wazuh XML (Phase 5)."""
+"""Gói sigma2wazuh — parse + analyze + map IR + convert Wazuh XML + matcher local (Phase 6)."""
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
