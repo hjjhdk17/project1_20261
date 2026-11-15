@@ -99,9 +99,11 @@ def test_one_of_fires_only_matching_branch() -> None:
     root = _convert(PHASE3 / "eligible_one_of.yml")
     ids = [rule.get("id") for rule in root.findall("rule")]
     assert ids == ["100000", "100001"]
-    only_image = match_rules(root, {"win.eventdata.originalFileName": "dumpstack.log"})
+    only_original_file_name = match_rules(
+        root, {"win.eventdata.originalFileName": "dumpstack.log"}
+    )
     only_cli = match_rules(root, {CMDLINE: "copy DumpStack.log"})
-    assert only_image == ["100000"]
+    assert only_original_file_name == ["100000"]
     assert only_cli == ["100001"]
     assert match_rules(root, {CMDLINE: "nothing"}) == []
 
