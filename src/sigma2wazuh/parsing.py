@@ -7,11 +7,18 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import platform
+import tempfile
+import time
 from datetime import datetime, timezone
+from importlib.metadata import version as package_version
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 import yaml
+
+from sigma2wazuh import __version__
 
 # Phần mở rộng YAML được coi là rule Sigma.
 _YAML_SUFFIXES = {".yml", ".yaml"}
@@ -39,14 +46,163 @@ def discover_rule_files(input_path: Path) -> list[Path]:
 
 
 def _relative_path(path: Path, path_base: Path | None) -> str:
-    """Đường dẫn ghi trong report: ưu tiên relative theo path_base."""
+    """Đường dẫn ghi trong report, dạng POSIX.
+
+    Trong path_base → tương đối. Ngoài path_base, hoặc không có path_base → tuyệt đối.
+    """
     path = path.resolve()
     if path_base is None:
-        return str(path)
+        return path.as_posix()
     try:
-        return str(path.relative_to(path_base.resolve()))
+        return path.relative_to(path_base.resolve()).as_posix()
     except ValueError:
-        return str(path)
+        return path.as_posix()
+
+
+class OutputError(Exception):
+    """Không ghi output: đích đã tồn tại, hoặc hai đích trùng path."""
+
+
+def report_meta(started: float) -> dict[str, Any]:
+    """Phần đầu báo cáo. elapsed_ms và generated_at_utc được phép khác giữa hai lần chạy."""
+    return {
+        "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "elapsed_ms": int((time.perf_counter() - started) * 1000),
+        "tool_version": __version__,
+        "python_version": platform.python_version(),
+        "pysigma_version": package_version("pysigma"),
+    }
+
+
+def reason_histogram(records: list[dict[str, Any]]) -> dict[str, int]:
+    """Đếm mã lỗi trên từng record, mỗi mã một lần. Khóa sort để summary ổn định."""
+    counts: dict[str, int] = {}
+    for record in records:
+        found: set[str] = set()
+
+        def take(code: object) -> None:
+            if isinstance(code, str) and code and code not in found:
+                found.add(code)
+                counts[code] = counts.get(code, 0) + 1
+
+        take(record.get("reason"))
+        for key in ("diagnostics", "map_diagnostics", "unsupported_features"):
+            items = record.get(key)
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if isinstance(item, dict):
+                    take(item.get("code"))
+        if record.get("conversion_status") == "SKIPPED" and not found:
+            take(record.get("map_status"))
+    return {code: counts[code] for code in sorted(counts)}
+
+
+def _as_input_list(input_path: Path | Sequence[Path]) -> list[Path]:
+    if isinstance(input_path, Path):
+        return [input_path]
+    return list(input_path)
+
+
+def _deduped_resolved(inputs: Sequence[Path]) -> list[Path]:
+    """Giữ thứ tự flag, bỏ path resolve trùng."""
+    seen: set[Path] = set()
+    out: list[Path] = []
+    for raw in inputs:
+        resolved = raw.expanduser().resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        out.append(resolved)
+    return out
+
+
+def _input_field(inputs: Sequence[Path]) -> str | list[str]:
+    values = [path.as_posix() for path in inputs]
+    if len(values) == 1:
+        return values[0]
+    return values
+
+
+def _collect_rule_targets(
+    inputs: Sequence[Path],
+    path_base: Path | None,
+) -> list[tuple[str, Path, str]]:
+    """File YAML và input thiếu. Khử trùng theo resolve, sort theo rule_path."""
+    seen: set[Path] = set()
+    items: list[tuple[str, Path, str]] = []
+
+    def add(path: Path, kind: str) -> None:
+        resolved = path.resolve()
+        if resolved in seen:
+            return
+        seen.add(resolved)
+        items.append((_relative_path(resolved, path_base), resolved, kind))
+
+    for raw in inputs:
+        resolved = raw.expanduser().resolve()
+        if resolved.is_dir():
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            for file in discover_rule_files(resolved):
+                add(file, "file")
+            continue
+        if not resolved.exists():
+            add(resolved, "missing")
+            continue
+        add(resolved, "file")
+
+    items.sort(key=lambda item: item[0])
+    return items
+
+
+def report_to_json(report: dict[str, Any]) -> str:
+    """JSON UTF-8. Bỏ xml_root vì không serialize."""
+    body = {key: value for key, value in report.items() if key != "xml_root"}
+    return json.dumps(body, ensure_ascii=False, indent=2) + "\n"
+
+
+def commit_outputs(files: Sequence[tuple[Path, str]], *, force: bool) -> None:
+    """Ghi mọi đích, hoặc không ghi đích nào.
+
+    Kiểm tra trùng path và file đã tồn tại trước khi tạo file tạm.
+    Replace chỉ chạy sau khi mọi file tạm đã ghi xong.
+    """
+    resolved: list[tuple[Path, str]] = []
+    seen: set[Path] = set()
+    for raw, text in files:
+        path = raw.expanduser().resolve()
+        if path in seen:
+            raise OutputError(f"Output paths resolve to the same file: {path}")
+        seen.add(path)
+        resolved.append((path, text))
+
+    if not force:
+        existing = [path for path, _ in resolved if path.exists()]
+        if existing:
+            listed = ", ".join(path.as_posix() for path in existing)
+            raise OutputError(f"Output already exists (use --force): {listed}")
+
+    temps: list[Path] = []
+    try:
+        for path, text in resolved:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            fd, name = tempfile.mkstemp(
+                prefix=f".{path.name}.",
+                suffix=".tmp",
+                dir=path.parent,
+            )
+            tmp = Path(name)
+            temps.append(tmp)
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(text)
+        for (path, _), tmp in zip(resolved, temps, strict=True):
+            os.replace(tmp, path)
+        temps.clear()
+    finally:
+        for tmp in temps:
+            tmp.unlink(missing_ok=True)
 
 
 def _sha256_text(text: str) -> str:
@@ -298,55 +454,58 @@ def lookup_source_commit(start: Path) -> str | None:
 
 
 def parse_batch(
-    input_path: Path,
+    input_path: Path | Sequence[Path],
     *,
     path_base: Path | None = None,
     source_commit: str | None = None,
 ) -> dict[str, Any]:
-    """Parse một file hoặc cả thư mục. Một rule lỗi không dừng các rule khác."""
-    input_path = input_path.expanduser().resolve()
-    if source_commit is None:
-        source_commit = lookup_source_commit(input_path)
+    """Parse một hoặc nhiều file/thư mục. Một rule lỗi không dừng các rule khác.
 
-    # Thư mục không tồn tại → một record FAILED, không raise.
-    if not input_path.exists():
-        records = [
-            _fail(
-                rule_path=_relative_path(input_path, path_base),
-                sha256=None,
-                source_commit=source_commit,
-                stage="missing_path",
-                code="INPUT_NOT_FOUND",
-                message=f"Input path not found: {input_path}",
+    Path trùng sau resolve chỉ parse một lần. Record sort theo rule_path.
+    """
+    started = time.perf_counter()
+    inputs = _deduped_resolved(_as_input_list(input_path))
+    if source_commit is None:
+        for item in inputs:
+            source_commit = lookup_source_commit(item)
+            if source_commit:
+                break
+
+    records: list[dict[str, Any]] = []
+    for rule_path, path, kind in _collect_rule_targets(inputs, path_base):
+        if kind == "missing":
+            records.append(
+                _fail(
+                    rule_path=rule_path,
+                    sha256=None,
+                    source_commit=source_commit,
+                    stage="missing_path",
+                    code="INPUT_NOT_FOUND",
+                    message=f"Input path not found: {path}",
+                )
             )
-        ]
-    else:
-        files = discover_rule_files(input_path)
-        # Thư mục rỗng (không có YAML): summary 0, không lỗi.
-        records = [
+            continue
+        records.append(
             parse_one(path, path_base=path_base, source_commit=source_commit)
-            for path in files
-        ]
+        )
 
     ok = sum(1 for item in records if item["parse_status"] == "OK")
     failed = len(records) - ok
     return {
-        "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "input": str(input_path),
+        **report_meta(started),
+        "input": _input_field(inputs),
         "records": records,
         "summary": {
             "total": len(records),
             "ok": ok,
             "failed": failed,
+            "reasons": reason_histogram(records),
         },
     }
 
 
 def write_report(report: dict[str, Any], output_path: Path) -> None:
-    """Ghi báo cáo JSON (UTF-8, indent 2)."""
+    """Ghi báo cáo JSON (UTF-8, indent 2). Ghi thẳng, không kiểm tra --force."""
     output_path = output_path.expanduser()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    output_path.write_text(report_to_json(report), encoding="utf-8")

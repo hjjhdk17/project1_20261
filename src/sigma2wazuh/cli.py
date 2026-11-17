@@ -5,21 +5,45 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import Any
 
 from sigma2wazuh import __version__
 from sigma2wazuh.config import ConfigError, find_project_root, load_config
 from sigma2wazuh.logging_setup import resolve_level, setup_logging
 from sigma2wazuh.mapper import map_batch
-from sigma2wazuh.parsing import parse_batch, write_report
+from sigma2wazuh.parsing import OutputError, commit_outputs, parse_batch, report_to_json
 from sigma2wazuh.support_analyzer import analyze_batch
-from sigma2wazuh.wazuh_generator import convert_from_input, write_outputs
+from sigma2wazuh.wazuh_generator import convert_from_input, xml_to_string
+
+
+def _status_word(problems: int) -> str:
+    """OK chỉ khi không có rule FAILED. Chuỗi này in ra stdout."""
+    return "OK" if problems == 0 else "finished"
+
+
+def _exit_for(problems: int) -> int:
+    return 0 if problems == 0 else 3
+
+
+def _log_word(problems: int) -> str:
+    """Log không chứa OK khi có rule FAILED."""
+    return "done" if problems == 0 else "finished"
+
+
+def _convert_problem_count(report: dict[str, Any]) -> int:
+    """conversion FAILED, cộng parse/support FAILED (convert ghi các record đó là SKIPPED)."""
+    count = int(report["summary"]["failed"])
+    for record in report["records"]:
+        if record.get("parse_status") == "FAILED" or record.get("support_status") == "FAILED":
+            count += 1
+    return count
 
 
 def build_parser() -> argparse.ArgumentParser:
     """Tạo parser gốc với flag global và các subcommand hiện có."""
     parser = argparse.ArgumentParser(
         prog="sigma2wazuh",
-        description="Sigma-to-Wazuh converter (Phase 5: IR → Wazuh XML).",
+        description="Sigma-to-Wazuh converter (Phase 7: batch reports).",
     )
     parser.add_argument(
         "--version",
@@ -54,13 +78,20 @@ def build_parser() -> argparse.ArgumentParser:
         "--input",
         required=True,
         type=Path,
-        help="Sigma rule file or directory to parse.",
+        action="append",
+        dest="inputs",
+        help="Sigma rule file or directory. Repeat to add more. Duplicates are ignored.",
     )
     parse_cmd.add_argument(
         "--output",
         type=Path,
         default=None,
         help="JSON output path (default: <paths.output>/phase2-parse.json).",
+    )
+    parse_cmd.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite the output file if it already exists.",
     )
     parse_cmd.set_defaults(func=cmd_parse)
 
@@ -72,13 +103,20 @@ def build_parser() -> argparse.ArgumentParser:
         "--input",
         required=True,
         type=Path,
-        help="Sigma rule file or directory to analyze.",
+        action="append",
+        dest="inputs",
+        help="Sigma rule file or directory. Repeat to add more. Duplicates are ignored.",
     )
     analyze_cmd.add_argument(
         "--output",
         type=Path,
         default=None,
         help="JSON output path (default: <paths.output>/phase3-support.json).",
+    )
+    analyze_cmd.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite the output file if it already exists.",
     )
     analyze_cmd.set_defaults(func=cmd_analyze)
 
@@ -90,13 +128,20 @@ def build_parser() -> argparse.ArgumentParser:
         "--input",
         required=True,
         type=Path,
-        help="Sigma rule file or directory to map.",
+        action="append",
+        dest="inputs",
+        help="Sigma rule file or directory. Repeat to add more. Duplicates are ignored.",
     )
     map_cmd.add_argument(
         "--output",
         type=Path,
         default=None,
         help="JSON output path (default: <paths.output>/phase4-ir.json).",
+    )
+    map_cmd.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite the output file if it already exists.",
     )
     map_cmd.add_argument(
         "--field-mapping",
@@ -114,7 +159,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--input",
         required=True,
         type=Path,
-        help="Sigma rule file or directory to convert.",
+        action="append",
+        dest="inputs",
+        help="Sigma rule file or directory. Repeat to add more. Duplicates are ignored.",
     )
     convert_cmd.add_argument(
         "--output-xml",
@@ -133,6 +180,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="Field mapping YAML (default: config/field_mapping.yaml under project root).",
+    )
+    convert_cmd.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite XML and JSON outputs if they already exist.",
     )
     convert_cmd.set_defaults(func=cmd_convert)
 
@@ -188,8 +240,6 @@ def cmd_parse(args: argparse.Namespace) -> int:
         )
         logger = setup_logging(level)
 
-        input_path = args.input.expanduser()
-        # path_base: ưu tiên project root để path trong JSON gọn và ổn định.
         path_base = find_project_root()
         output_path = (
             args.output.expanduser()
@@ -197,26 +247,30 @@ def cmd_parse(args: argparse.Namespace) -> int:
             else cfg.output_dir / "phase2-parse.json"
         )
 
-        report = parse_batch(input_path, path_base=path_base)
-        write_report(report, output_path)
+        report = parse_batch(args.inputs, path_base=path_base)
+        commit_outputs([(output_path, report_to_json(report))], force=args.force)
 
         summary = report["summary"]
+        problems = int(summary["failed"])
         logger.info(
-            "Parse done: total=%s ok=%s failed=%s output=%s",
+            "Parse %s: total=%s ok=%s failed=%s output=%s",
+            _log_word(problems),
             summary["total"],
             summary["ok"],
             summary["failed"],
             output_path,
         )
         print(
-            "Parse OK: "
+            f"Parse {_status_word(problems)}: "
             f"total={summary['total']} "
             f"ok={summary['ok']} "
             f"failed={summary['failed']} "
             f"output={output_path}"
         )
-        # Exit 0 khi pipeline chạy xong và đã ghi report (kể cả có rule FAILED).
-        return 0
+        return _exit_for(problems)
+    except OutputError as exc:
+        print(f"OutputError: {exc}", file=sys.stderr)
+        return 1
     except ConfigError as exc:
         print(f"ConfigError: {exc}", file=sys.stderr)
         return 1
@@ -235,7 +289,6 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         )
         logger = setup_logging(level)
 
-        input_path = args.input.expanduser()
         path_base = find_project_root()
         output_path = (
             args.output.expanduser()
@@ -243,12 +296,14 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             else cfg.output_dir / "phase3-support.json"
         )
 
-        report = analyze_batch(input_path, path_base=path_base)
-        write_report(report, output_path)
+        report = analyze_batch(args.inputs, path_base=path_base)
+        commit_outputs([(output_path, report_to_json(report))], force=args.force)
 
         summary = report["summary"]
+        problems = int(summary["failed"])
         logger.info(
-            "Analyze done: total=%s eligible=%s unsupported=%s failed=%s output=%s",
+            "Analyze %s: total=%s eligible=%s unsupported=%s failed=%s output=%s",
+            _log_word(problems),
             summary["total"],
             summary["eligible"],
             summary["unsupported"],
@@ -256,14 +311,17 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             output_path,
         )
         print(
-            "Analyze OK: "
+            f"Analyze {_status_word(problems)}: "
             f"total={summary['total']} "
             f"eligible={summary['eligible']} "
             f"unsupported={summary['unsupported']} "
             f"failed={summary['failed']} "
             f"output={output_path}"
         )
-        return 0
+        return _exit_for(problems)
+    except OutputError as exc:
+        print(f"OutputError: {exc}", file=sys.stderr)
+        return 1
     except ConfigError as exc:
         print(f"ConfigError: {exc}", file=sys.stderr)
         return 1
@@ -283,7 +341,6 @@ def cmd_map(args: argparse.Namespace) -> int:
         logger = setup_logging(level)
 
         root = find_project_root()
-        input_path = args.input.expanduser()
         output_path = (
             args.output.expanduser()
             if args.output is not None
@@ -296,16 +353,18 @@ def cmd_map(args: argparse.Namespace) -> int:
         )
 
         report = map_batch(
-            input_path,
+            args.inputs,
             path_base=root,
             field_mapping_path=field_mapping,
         )
-        write_report(report, output_path)
+        commit_outputs([(output_path, report_to_json(report))], force=args.force)
 
         summary = report["summary"]
+        problems = int(summary["map_failed"]) + int(summary["skipped_failed"])
         logger.info(
-            "Map done: total=%s mapped=%s skipped_unsupported=%s "
+            "Map %s: total=%s mapped=%s skipped_unsupported=%s "
             "skipped_failed=%s map_failed=%s output=%s",
+            _log_word(problems),
             summary["total"],
             summary["mapped"],
             summary["skipped_unsupported"],
@@ -314,7 +373,7 @@ def cmd_map(args: argparse.Namespace) -> int:
             output_path,
         )
         print(
-            "Map OK: "
+            f"Map {_status_word(problems)}: "
             f"total={summary['total']} "
             f"mapped={summary['mapped']} "
             f"skipped_unsupported={summary['skipped_unsupported']} "
@@ -322,7 +381,10 @@ def cmd_map(args: argparse.Namespace) -> int:
             f"map_failed={summary['map_failed']} "
             f"output={output_path}"
         )
-        return 0
+        return _exit_for(problems)
+    except OutputError as exc:
+        print(f"OutputError: {exc}", file=sys.stderr)
+        return 1
     except ConfigError as exc:
         print(f"ConfigError: {exc}", file=sys.stderr)
         return 1
@@ -342,7 +404,6 @@ def cmd_convert(args: argparse.Namespace) -> int:
         logger = setup_logging(level)
 
         root = find_project_root()
-        input_path = args.input.expanduser()
         xml_path = (
             args.output_xml.expanduser()
             if args.output_xml is not None
@@ -360,19 +421,27 @@ def cmd_convert(args: argparse.Namespace) -> int:
         )
 
         report = convert_from_input(
-            input_path,
+            args.inputs,
             path_base=root,
             field_mapping_path=field_mapping,
             rule_id_base=cfg.wazuh_rule_id_base,
             if_sid=cfg.wazuh_if_sid,
             level_map=cfg.wazuh_level_map,
         )
-        write_outputs(report, xml_path, report_path)
+        commit_outputs(
+            [
+                (xml_path, xml_to_string(report["xml_root"])),
+                (report_path, report_to_json(report)),
+            ],
+            force=args.force,
+        )
 
         summary = report["summary"]
+        problems = _convert_problem_count(report)
         logger.info(
-            "Convert done: total=%s success=%s unsupported=%s failed=%s "
+            "Convert %s: total=%s success=%s unsupported=%s failed=%s "
             "skipped=%s rules=%s xml=%s report=%s",
+            _log_word(problems),
             summary["total"],
             summary["success"],
             summary["unsupported"],
@@ -383,7 +452,7 @@ def cmd_convert(args: argparse.Namespace) -> int:
             report_path,
         )
         print(
-            "Convert OK: "
+            f"Convert {_status_word(problems)}: "
             f"total={summary['total']} "
             f"success={summary['success']} "
             f"unsupported={summary['unsupported']} "
@@ -393,7 +462,10 @@ def cmd_convert(args: argparse.Namespace) -> int:
             f"xml={xml_path} "
             f"report={report_path}"
         )
-        return 0
+        return _exit_for(problems)
+    except OutputError as exc:
+        print(f"OutputError: {exc}", file=sys.stderr)
+        return 1
     except ConfigError as exc:
         print(f"ConfigError: {exc}", file=sys.stderr)
         return 1

@@ -6,14 +6,13 @@ Reuse map_batch. Không parse lại Sigma. Không sửa mapper.
 from __future__ import annotations
 
 import re
+import time
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
-from sigma2wazuh import __version__
 from sigma2wazuh.mapper import map_batch
-from sigma2wazuh.parsing import write_report
+from sigma2wazuh.parsing import report_meta, write_report
 
 # Tên group bọc toàn batch (cố định theo phạm vi MVP process_creation).
 _GROUP_NAME = "sigma,windows,process_creation,"
@@ -287,6 +286,47 @@ def plan_rules(
     return None, "CONDITION_SHAPE_UNSUPPORTED"
 
 
+def _xml10_text_ok(text: str) -> bool:
+    """True khi mọi ký tự thuộc XML 1.0 Char. &, <, > vẫn hợp lệ."""
+    for char in text:
+        code = ord(char)
+        if code in (0x9, 0xA, 0xD):
+            continue
+        if 0x20 <= code <= 0xD7FF or 0xE000 <= code <= 0xFFFD or 0x10000 <= code <= 0x10FFFF:
+            continue
+        return False
+    return True
+
+
+def _xml_char_problem(plans: list[dict[str, Any]]) -> dict[str, str] | None:
+    """Chuỗi sẽ ghi vào XML của record. None nếu tất cả hợp lệ."""
+    for plan in plans:
+        for label in ("description", "info"):
+            text = plan.get(label)
+            if not isinstance(text, str):
+                text = "" if text is None else str(text)
+            if not _xml10_text_ok(text):
+                return _diag(
+                    "XML_INVALID_CHAR",
+                    f"Illegal XML 1.0 character in {label}",
+                )
+        for field in plan.get("fields") or []:
+            name = field.get("name") or ""
+            if not _xml10_text_ok(name):
+                return _diag(
+                    "XML_INVALID_CHAR",
+                    "Illegal XML 1.0 character in field name",
+                )
+            body = field.text or ""
+            if not _xml10_text_ok(body):
+                shown = name or "?"
+                return _diag(
+                    "XML_INVALID_CHAR",
+                    f"Illegal XML 1.0 character in field text {shown!r}",
+                )
+    return None
+
+
 def allocate_ids(n: int, base: int, used: set[int]) -> list[int]:
     """Cấp n ID tuần tự bắt đầu từ base, bỏ qua ID đã dùng; deterministic."""
     if n <= 0:
@@ -399,6 +439,15 @@ def generate_batch(
         if reason or plans is None:
             item["conversion_status"] = "UNSUPPORTED"
             item["reason"] = reason or "PLAN_FAILED"
+            by_index[index] = item
+            continue
+
+        char_problem = _xml_char_problem(plans)
+        if char_problem is not None:
+            item["conversion_status"] = "FAILED"
+            item["reason"] = "XML_INVALID_CHAR"
+            item["diagnostics"] = [char_problem]
+            item["rule_ids"] = []
             by_index[index] = item
             continue
 
@@ -578,14 +627,52 @@ def apply_xml_validation(
     return True, batch_diags
 
 
+def _conversion_reasons(
+    report_records: list[dict[str, Any]],
+    source_records: list[dict[str, Any]],
+) -> dict[str, int]:
+    """Mã trên report convert. SKIPPED lấy mã từ record map (wildcard, parse, unsupported)."""
+    counts: dict[str, int] = {}
+    for item, src in zip(report_records, source_records, strict=True):
+        found: set[str] = set()
+
+        def take(code: object) -> None:
+            if isinstance(code, str) and code and code not in found:
+                found.add(code)
+                counts[code] = counts.get(code, 0) + 1
+
+        status = item.get("conversion_status")
+        if status == "SUCCESS":
+            continue
+        if status == "FAILED":
+            take(item.get("reason"))
+            for diag in item.get("diagnostics") or []:
+                if isinstance(diag, dict):
+                    take(diag.get("code"))
+            continue
+        if status == "UNSUPPORTED":
+            take(item.get("reason"))
+            continue
+        for key in ("map_diagnostics", "unsupported_features", "diagnostics"):
+            for diag in src.get(key) or []:
+                if isinstance(diag, dict):
+                    take(diag.get("code"))
+        if not found:
+            take(src.get("map_status"))
+    return {code: counts[code] for code in sorted(counts)}
+
+
 def convert_batch(
     mapped: dict[str, Any],
     *,
     rule_id_base: int,
     if_sid: int,
     level_map: Mapping[str, int],
+    started: float | None = None,
 ) -> dict[str, Any]:
     """Từ report map_batch → XML root + report conversion (kèm validate)."""
+    if started is None:
+        started = time.perf_counter()
     records = list(mapped.get("records") or [])
     root, report_records = generate_batch(
         records,
@@ -604,8 +691,7 @@ def convert_batch(
     total = len(report_records)
 
     return {
-        "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "tool_version": __version__,
+        **report_meta(started),
         "input": mapped.get("input"),
         "field_mapping": mapped.get("field_mapping"),
         "wazuh": {
@@ -631,6 +717,7 @@ def convert_batch(
             "failed": failed,
             "skipped": skipped,
             "rule_elements": len(root.findall("rule")),
+            "reasons": _conversion_reasons(report_records, records),
         },
     }
 
@@ -658,7 +745,7 @@ def write_outputs(
 
 
 def convert_from_input(
-    input_path: Path,
+    input_path: Path | Sequence[Path],
     *,
     path_base: Path | None = None,
     field_mapping_path: Path,
@@ -667,6 +754,7 @@ def convert_from_input(
     level_map: Mapping[str, int],
 ) -> dict[str, Any]:
     """map_batch rồi convert_batch (điểm vào cho CLI convert)."""
+    started = time.perf_counter()
     mapped = map_batch(
         input_path,
         path_base=path_base,
@@ -677,6 +765,7 @@ def convert_from_input(
         rule_id_base=rule_id_base,
         if_sid=if_sid,
         level_map=level_map,
+        started=started,
     )
 
 

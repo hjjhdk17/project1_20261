@@ -74,7 +74,10 @@ def test_empty_directory(tmp_path: Path) -> None:
     empty_dir = tmp_path / "empty_rules"
     empty_dir.mkdir()
     report = parse_batch(empty_dir, path_base=tmp_path)
-    assert report["summary"] == {"total": 0, "ok": 0, "failed": 0}
+    assert report["summary"]["total"] == 0
+    assert report["summary"]["ok"] == 0
+    assert report["summary"]["failed"] == 0
+    assert report["summary"]["reasons"] == {}
     assert report["records"] == []
 
 
@@ -123,8 +126,10 @@ def test_cli_parse_fixtures(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
     out = tmp_path / "phase2.json"
     code = main(["parse", "--input", str(FIXTURES), "--output", str(out)])
     captured = capsys.readouterr()
-    assert code == 0
-    assert "Parse OK:" in captured.out
+    assert code == 3
+    assert "Parse finished:" in captured.out
+    assert "OK" not in captured.out
+    assert "OK" not in captured.err
     data = json.loads(out.read_text(encoding="utf-8"))
     assert data["summary"]["total"] == data["summary"]["ok"] + data["summary"]["failed"]
     assert data["summary"]["failed"] >= 1

@@ -1,3 +1,3 @@
-"""Gói sigma2wazuh — parse + analyze + map IR + convert Wazuh XML + matcher local (Phase 6)."""
+"""Gói sigma2wazuh — parse, analyze, map, convert, matcher local, báo cáo batch (Phase 7)."""
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"

@@ -6,14 +6,14 @@ Không đọc lại file rule — dùng ``detection`` đã gắn trên record.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 import yaml
 from sigma.types import SigmaString
 
-from sigma2wazuh import __version__
+from sigma2wazuh.parsing import reason_histogram, report_meta
 from sigma2wazuh.support_analyzer import analyze_batch, match_mvp_condition
 
 # Modifier Sigma → op trong IR.
@@ -322,13 +322,14 @@ def map_record(
 
 
 def map_batch(
-    input_path: Path,
+    input_path: Path | Sequence[Path],
     *,
     path_base: Path | None = None,
     source_commit: str | None = None,
     field_mapping_path: Path | None = None,
 ) -> dict[str, Any]:
     """Analyze rồi map ELIGIBLE → IR. Không đọc lại file rule."""
+    started = time.perf_counter()
     analyzed = analyze_batch(
         input_path, path_base=path_base, source_commit=source_commit
     )
@@ -347,10 +348,9 @@ def map_batch(
     map_failed = sum(1 for r in records if r["map_status"] == "FAILED")
 
     return {
-        "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "tool_version": __version__,
+        **report_meta(started),
         "input": analyzed["input"],
-        "field_mapping": str(field_mapping_path.resolve()),
+        "field_mapping": field_mapping_path.resolve().as_posix(),
         "records": records,
         "summary": {
             "total": len(records),
@@ -358,6 +358,7 @@ def map_batch(
             "skipped_unsupported": skipped_unsupported,
             "skipped_failed": skipped_failed,
             "map_failed": map_failed,
+            "reasons": reason_histogram(records),
         },
     }
 

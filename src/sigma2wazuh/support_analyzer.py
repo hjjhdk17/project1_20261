@@ -8,13 +8,13 @@ Phase 4 tái dùng match_mvp_condition / resolve_rule_file và đọc ``detectio
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 import yaml
 
-from sigma2wazuh.parsing import parse_batch
+from sigma2wazuh.parsing import parse_batch, reason_histogram, report_meta
 
 # Allowlist MVP (SRS §8). Exact match (không có |) luôn được phép.
 ALLOWED_FIELDS = frozenset(
@@ -242,7 +242,7 @@ def resolve_rule_file(
 
 
 def analyze_batch(
-    input_path: Path,
+    input_path: Path | Sequence[Path],
     *,
     path_base: Path | None = None,
     source_commit: str | None = None,
@@ -252,10 +252,17 @@ def analyze_batch(
     Khi đọc YAML thành công, gắn ``detection`` vào record để Phase 4 map
     không cần đọc lại file.
     """
+    started = time.perf_counter()
     parsed = parse_batch(
         input_path, path_base=path_base, source_commit=source_commit
     )
-    input_resolved = Path(parsed["input"])
+    raw_input = parsed["input"]
+    if isinstance(raw_input, str):
+        input_resolved = Path(raw_input)
+    elif raw_input:
+        input_resolved = Path(raw_input[0])
+    else:
+        input_resolved = Path(".")
 
     records: list[dict[str, Any]] = []
     eligible = unsupported = failed = 0
@@ -320,7 +327,7 @@ def analyze_batch(
         records.append(item)
 
     return {
-        "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        **report_meta(started),
         "input": parsed["input"],
         "records": records,
         "summary": {
@@ -329,6 +336,7 @@ def analyze_batch(
             "eligible": eligible,
             "unsupported": unsupported,
             "failed": failed,
+            "reasons": reason_histogram(records),
         },
     }
 

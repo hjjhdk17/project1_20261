@@ -4,6 +4,8 @@ Academic Python prototype. Phase 5 converts **MAPPED** thin IR records into
 Wazuh XML rules (`<field type="pcre2">`) plus a JSON conversion report.
 Phase 6 checks those rules against synthetic events in pytest (`evaluator.match_rules`).
 The matcher only looks at `<field>` and assumes the event already passed `if_sid`.
+Phase 7 is the batch CLI: repeatable `--input`, JSON summary, exit codes, and
+`--force` so an existing output file is not overwritten by accident.
 
 Design documents stay in `project1_sigma_wazuh_design/` (read-only reference).
 Phase 0 dataset tools remain under `scripts/`.
@@ -34,8 +36,9 @@ python -m pip install -r requirements.lock
 ```
 
 Editable install makes `import sigma2wazuh` and the `sigma2wazuh` console script
-available. Pytest still uses `pythonpath = scripts` so Phase 0 dataset tests keep
-working.
+available. Pytest config lives in `pyproject.toml` (`pythonpath = scripts`
+so Phase 0 dataset tests keep working). `pytest -q` skips the corpus test
+marked `slow`.
 
 ## CLI
 
@@ -43,14 +46,21 @@ working.
 python -m sigma2wazuh --help
 python -m sigma2wazuh --version
 python -m sigma2wazuh validate-config
-python -m sigma2wazuh parse --input input/sigma_rules/curated --output output/phase2-parse.json
-python -m sigma2wazuh analyze --input input/sigma_rules/curated --output output/phase3-support.json
-python -m sigma2wazuh map --input input/sigma_rules/curated --output output/phase4-ir.json
+python -m sigma2wazuh parse --input input/sigma_rules/curated --output output/phase2-parse.json --force
+python -m sigma2wazuh analyze --input input/sigma_rules/curated --output output/phase3-support.json --force
+python -m sigma2wazuh map --input input/sigma_rules/curated --output output/phase4-ir.json --force
 python -m sigma2wazuh convert --input input/sigma_rules/curated \
   --output-xml output/phase5-rules.xml \
-  --output-report output/phase5-report.json
+  --output-report output/phase5-report.json \
+  --force
 python -m sigma2wazuh --config config/default.yaml --log-level DEBUG validate-config
 ```
+
+`--input` may be repeated. Paths are deduped by resolved path and records are
+sorted by `rule_path`. `--force` is required when the destination file already
+exists. `convert` checks the XML path and the JSON path before it writes either
+file. If both flags point at the same path, the command exits 1 and writes
+nothing.
 
 Equivalent entry point after editable install:
 
@@ -75,19 +85,28 @@ come from the `wazuh:` section in `config/default.yaml`.
 
 Exit codes:
 
-- `0` — success (pipeline finished and outputs written, even if some rules FAILED/UNSUPPORTED/skipped)
-- `1` — configuration or runtime error
+- `0` — outputs written, and no rule `FAILED` (`UNSUPPORTED` / `SKIPPED` still exit 0)
+- `3` — outputs written, and at least one rule `FAILED` (stdout and log do not say `OK`)
+- `1` — configuration or runtime error, or output refused (exists without `--force`, or two destinations resolve to one path)
 - `2` — CLI usage/syntax error (argparse default)
+
+`convert` also exits 3 when a rule failed to parse or the support step failed,
+even though that record's `conversion_status` is `SKIPPED`. A map failure such
+as `WILDCARD_UNSUPPORTED` stays `SKIPPED` and does not by itself change the
+`convert` exit code. `map` exits 3 when `map_failed` or `skipped_failed` is
+greater than 0.
 
 ## Tests
 
 ```bash
 python -m pytest -q
+python -m pytest -q -m slow
 ```
 
-This runs Phase 0–6 tests.
+`pytest -q` runs Phase 0–7 except the corpus test. `-m slow` runs that corpus
+convert (1,193 rules).
 
-## Layout (Phase 6)
+## Layout (Phase 7)
 
 - `src/sigma2wazuh/` — package (`cli`, `config`, `logging_setup`, `parsing`, `support_analyzer`, `mapper`, `wazuh_generator`, `evaluator`)
 - `config/default.yaml` — default config (paths + `wazuh:`)
@@ -98,4 +117,5 @@ This runs Phase 0–6 tests.
 - `tests/fixtures/phase2/` — parser fixtures
 - `tests/fixtures/phase3/` — support-analyzer fixtures (reused by Phase 4/5)
 - `tests/fixtures/phase4/` — map-only fixtures (wildcard, incomplete mapping)
+- `tests/fixtures/phase7/` — rule whose `Image` contains an illegal XML 1.0 character
 - `docs/evidence/p5-if_sid-61603-sysmon-event1.*` — lab evidence for parent rule 61603

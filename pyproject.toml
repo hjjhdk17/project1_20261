@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sigma2wazuh"
-version = "0.6.0"
-description = "Academic Sigma-to-Wazuh converter prototype (Phase 6: local detection evaluation)"
+version = "0.7.0"
+description = "Academic Sigma-to-Wazuh converter prototype (Phase 7: batch reporting)"
 readme = "README.md"
 requires-python = ">=3.11,<4"
 # Same direct pins as requirements.txt (method C). Keep both files in sync.
@@ -20,3 +20,11 @@ sigma2wazuh = "sigma2wazuh.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["scripts"]
+testpaths = ["tests"]
+addopts = "-m 'not slow'"
+markers = [
+    "slow: full Sigma corpus; not part of the default suite",
+]
