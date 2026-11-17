@@ -6,6 +6,8 @@ Phase 6 checks those rules against synthetic events in pytest (`evaluator.match_
 The matcher only looks at `<field>` and assumes the event already passed `if_sid`.
 Phase 7 is the batch CLI: repeatable `--input`, JSON summary, exit codes, and
 `--force` so an existing output file is not overwritten by accident.
+Phase 8 can send that convert summary to Telegram with `convert --notify`.
+The flag is off unless you pass it. The process does not read a `.env` file.
 
 Design documents stay in `project1_sigma_wazuh_design/` (read-only reference).
 Phase 0 dataset tools remain under `scripts/`.
@@ -53,6 +55,9 @@ python -m sigma2wazuh convert --input input/sigma_rules/curated \
   --output-xml output/phase5-rules.xml \
   --output-report output/phase5-report.json \
   --force
+# Optional. The shell must export the variables; filling in .env is not enough.
+# set -a; source .env; set +a
+python -m sigma2wazuh convert --input input/sigma_rules/curated --notify --force
 python -m sigma2wazuh --config config/default.yaml --log-level DEBUG validate-config
 ```
 
@@ -90,6 +95,23 @@ Exit codes:
 - `1` — configuration or runtime error, or output refused (exists without `--force`, or two destinations resolve to one path)
 - `2` — CLI usage/syntax error (argparse default)
 
+`convert --notify` runs only after both output files are written. A Telegram
+failure (missing `TELEGRAM_BOT_TOKEN` or `TELEGRAM_CHAT_ID`, HTTP error,
+HTTP 200 with `"ok": false`, network error, timeout) prints one stderr line
+and leaves the exit code at 0 or 3. The line names the failure. It does not
+print the token, the chat ID, or the request URL. Exit 1 does not send.
+
+The program does not load `.env`. Export the variables in the shell first:
+
+```bash
+set -a
+source .env
+set +a
+```
+
+`.env.example` lists the two names with empty values. Copy it to `.env` and
+fill it in locally. `.env` is gitignored.
+
 `convert` also exits 3 when a rule failed to parse or the support step failed,
 even though that record's `conversion_status` is `SKIPPED`. A map failure such
 as `WILDCARD_UNSUPPORTED` stays `SKIPPED` and does not by itself change the
@@ -103,12 +125,12 @@ python -m pytest -q
 python -m pytest -q -m slow
 ```
 
-`pytest -q` runs Phase 0–7 except the corpus test. `-m slow` runs that corpus
+`pytest -q` runs Phase 0–8 except the corpus test. `-m slow` runs that corpus
 convert (1,193 rules).
 
-## Layout (Phase 7)
+## Layout (Phase 8)
 
-- `src/sigma2wazuh/` — package (`cli`, `config`, `logging_setup`, `parsing`, `support_analyzer`, `mapper`, `wazuh_generator`, `evaluator`)
+- `src/sigma2wazuh/` — package (`cli`, `config`, `logging_setup`, `parsing`, `support_analyzer`, `mapper`, `wazuh_generator`, `evaluator`, `telegram_notifier`)
 - `config/default.yaml` — default config (paths + `wazuh:`)
 - `config/field_mapping.yaml` — lab-verified Sigma → Wazuh field paths (U-01)
 - `output/` — generated artifacts (gitignored except `.gitkeep`)

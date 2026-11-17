@@ -1,4 +1,4 @@
-"""CLI: validate-config, parse, analyze, map, convert."""
+"""CLI: validate-config, parse, analyze, map, convert, optional Telegram notify."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from sigma2wazuh.logging_setup import resolve_level, setup_logging
 from sigma2wazuh.mapper import map_batch
 from sigma2wazuh.parsing import OutputError, commit_outputs, parse_batch, report_to_json
 from sigma2wazuh.support_analyzer import analyze_batch
+from sigma2wazuh.telegram_notifier import notify_summary
 from sigma2wazuh.wazuh_generator import convert_from_input, xml_to_string
 
 
@@ -43,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Tạo parser gốc với flag global và các subcommand hiện có."""
     parser = argparse.ArgumentParser(
         prog="sigma2wazuh",
-        description="Sigma-to-Wazuh converter (Phase 7: batch reports).",
+        description="Sigma-to-Wazuh converter (Phase 8: optional Telegram summary).",
     )
     parser.add_argument(
         "--version",
@@ -185,6 +186,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--force",
         action="store_true",
         help="Overwrite XML and JSON outputs if they already exist.",
+    )
+    convert_cmd.add_argument(
+        "--notify",
+        action="store_true",
+        help=(
+            "After XML and JSON are written, send a plain-text summary to Telegram. "
+            "Off unless this flag is set. Reads TELEGRAM_BOT_TOKEN and "
+            "TELEGRAM_CHAT_ID from the process environment. Notify errors print "
+            "one stderr line and do not change the exit code."
+        ),
     )
     convert_cmd.set_defaults(func=cmd_convert)
 
@@ -438,6 +449,14 @@ def cmd_convert(args: argparse.Namespace) -> int:
 
         summary = report["summary"]
         problems = _convert_problem_count(report)
+        exit_code = _exit_for(problems)
+        if args.notify:
+            notify_summary(
+                report,
+                xml_path=xml_path,
+                report_path=report_path,
+                ok=exit_code == 0,
+            )
         logger.info(
             "Convert %s: total=%s success=%s unsupported=%s failed=%s "
             "skipped=%s rules=%s xml=%s report=%s",
@@ -462,7 +481,7 @@ def cmd_convert(args: argparse.Namespace) -> int:
             f"xml={xml_path} "
             f"report={report_path}"
         )
-        return _exit_for(problems)
+        return exit_code
     except OutputError as exc:
         print(f"OutputError: {exc}", file=sys.stderr)
         return 1
